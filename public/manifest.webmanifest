@@ -1,0 +1,13 @@
+{
+  "name": "ITTP — Igitabo cy'Ubucuruzi",
+  "short_name": "ITTP",
+  "description": "Business management platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f3eb",
+  "theme_color": "#171b2a",
+  "lang": "rw",
+  "icons": [
+    {"src":"/logo.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}

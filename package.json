@@ -1,0 +1,24 @@
+{
+  "name": "igitabo-cy-ubucuruzi",
+  "version": "1.0.0",
+  "description": "Business management platform - multi-tenant (Super Admin / Admin / Guest), multilingual (EN/RW/FR), with sales, stock, commission tracking, and audit logs.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node src/seed.js",
+    "vercel-build": "echo \"ITTP Vercel build ready\""
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "homepage": "/"
+}
