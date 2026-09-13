@@ -1,4 +1,4 @@
-kkconst API_BASE_URL =
+const API_BASE_URL =
   window.location.hostname === 'localhost' ||
   window.location.hostname === '127.0.0.1'
     ? 'http://localhost:4000'
@@ -20,6 +20,7 @@ async function apiFetch(endpoint, options = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+
     throw new Error(
       errorData.message ||
       errorData.error ||
