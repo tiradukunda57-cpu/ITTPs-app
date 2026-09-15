@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
+const db = require('./src/db');
 const { ensureSuperAdmin } = require('./src/seed');
 const { startCronJobs } = require('./src/services/cron');
 
@@ -48,6 +49,7 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 4000;
 
 async function start() {
+  await db.init();
   await ensureSuperAdmin();
   startCronJobs();
   app.listen(PORT, () => {
