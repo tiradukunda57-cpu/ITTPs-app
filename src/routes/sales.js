@@ -8,11 +8,19 @@ router.use(requireAuth);
 
 // Admin na Guest bombi bemerewe kugurisha (kwandika igurisha).
 router.post('/', async (req, res) => {
-  const { productId, qty } = req.body;
+  const { productId, qty, customerName, customerPhone, customerEmail, paymentMethod, bankName, amountPaid } = req.body;
   const quantity = Number(qty);
   if (!productId || !quantity || quantity < 1) {
     return res.status(400).json({ error: 'Hitamo igicuruzwa n\'umubare wemewe.' });
   }
+  const custName = (customerName || '').trim();
+  if (!custName) {
+    return res.status(400).json({ error: 'Andika izina ry\'umukiriya.' });
+  }
+  const custPhone = (customerPhone || '').trim();
+  const custEmail = (customerEmail || '').trim();
+  const method = ['phone', 'bank'].includes(paymentMethod) ? paymentMethod : 'cash';
+  const bank = method === 'bank' ? (bankName || '').trim() : '';
 
   const businessId = businessIdOf(req.user);
   const data = db.read();
@@ -24,6 +32,11 @@ router.post('/', async (req, res) => {
 
   product.stock -= quantity;
   const total = product.price * quantity;
+  let paid = amountPaid !== undefined && amountPaid !== null && amountPaid !== '' ? Number(amountPaid) : total;
+  if (isNaN(paid) || paid < 0) paid = total;
+  const now = new Date().toISOString();
+  const isFullyPaid = paid >= total;
+
   const sale = {
     id: db.genId('sale'),
     businessId,
@@ -32,15 +45,48 @@ router.post('/', async (req, res) => {
     qty: quantity,
     unitPrice: product.price,
     total,
+    customerName: custName,
+    customerPhone: custPhone,
+    customerEmail: custEmail,
+    paymentMethod: method,
+    bankName: bank,
+    amountPaid: paid,
+    balance: paid - total,
+    paymentStatus: isFullyPaid ? 'paid' : 'debt', // 'paid' = yarishyuye byose, 'debt' = afite ideni
+    givenAt: now,          // igihe ibicuruzwa byatanzwe
+    paidAt: isFullyPaid ? now : null, // igihe cyishyuriweho byose (null niba ari ideni rikiri gutegurwa)
     soldBy: req.user.id,
     soldByName: req.user.name,
-    timestamp: new Date().toISOString()
+    timestamp: now
   };
   data.sales.push(sale);
   await db.write(data);
-  await logAudit({ actorId: req.user.id, action: 'create', entity: 'sale', entityId: sale.id, details: { productName: product.name, qty: quantity, total } });
+  await logAudit({ actorId: req.user.id, action: 'create', entity: 'sale', entityId: sale.id, details: { productName: product.name, qty: quantity, total, customerName: custName, paymentMethod: method, paymentStatus: sale.paymentStatus } });
 
   res.status(201).json(sale);
+});
+
+// Kwishyura ideni ryari risigaye (settle a debt / add a later payment)
+router.patch('/:id/settle', async (req, res) => {
+  const businessId = businessIdOf(req.user);
+  const data = db.read();
+  const sale = data.sales.find(s => s.id === req.params.id && s.businessId === businessId);
+  if (!sale) return res.status(404).json({ error: 'Igurisha ntiribonetse.' });
+  if (sale.paymentStatus === 'paid') return res.status(400).json({ error: 'Iri gurisha ryari rimaze kwishyurwa byose.' });
+
+  const extra = Number(req.body.amount);
+  if (!extra || extra <= 0) return res.status(400).json({ error: 'Andika amafaranga yishyuwe (agomba kuba arenze 0).' });
+
+  sale.amountPaid += extra;
+  sale.balance = sale.amountPaid - sale.total;
+  if (sale.amountPaid >= sale.total) {
+    sale.paymentStatus = 'paid';
+    sale.paidAt = new Date().toISOString();
+  }
+  await db.write(data);
+  await logAudit({ actorId: req.user.id, action: 'update', entity: 'sale', entityId: sale.id, details: { settlePayment: extra, newStatus: sale.paymentStatus } });
+
+  res.json(sale);
 });
 
 router.get('/', (req, res) => {
