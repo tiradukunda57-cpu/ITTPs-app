@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
   --paper: #F6F1E7;
@@ -22,10 +22,12 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15.5px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
-h1, h2, h3 { font-family: 'Fraunces', serif; font-weight: 600; margin: 0; }
+h1, h2, h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; letter-spacing: -.01em; margin: 0; }
 a { color: inherit; }
 button { font-family: inherit; cursor: pointer; }
 
@@ -63,7 +65,7 @@ button { font-family: inherit; cursor: pointer; }
 .lang-picker button.active { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 
 .field { margin-bottom: 14px; }
-.field label { display: block; font-size: 12.5px; color: var(--ink-muted); margin-bottom: 5px; }
+.field label { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink-muted); margin-bottom: 6px; }
 .field input, .field select {
   width: 100%; padding: 10px 11px; border: 1px solid var(--line);
   background: var(--paper); color: var(--ink); font-size: 14.5px; font-family: inherit;
@@ -108,7 +110,7 @@ button { font-family: inherit; cursor: pointer; }
   margin-bottom: 26px;
 }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-.sidebar nav button {
+.sidebar nav button { font-weight: 600;
   text-align: left; background: none; border: none; padding: 10px 10px;
   font-size: 14.5px; color: var(--ink-muted); border-left: 2px solid transparent;
 }
@@ -140,10 +142,10 @@ button { font-family: inherit; cursor: pointer; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 .sell-row { display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px; align-items: end; }
 
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-thead th { text-align: left; font-size: 12px; color: var(--ink-muted); font-weight: 500; border-bottom: 1px solid var(--ink); padding: 8px 6px; }
-tbody td { padding: 10px 6px; border-bottom: 1px solid var(--line); font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; }
-tbody td.name-cell { font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+thead th { text-align: left; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 700; border-bottom: 1px solid var(--ink); padding: 10px 8px; }
+tbody td { padding: 13px 8px; border-bottom: 1px solid var(--line); font-family: 'IBM Plex Mono', monospace; font-size: 14.5px; }
+tbody td.name-cell { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 600; }
 tbody tr.flag td { color: var(--danger); }
 
 .pill { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 2px 7px; border: 1px solid currentColor; margin-left: 8px; }
@@ -151,7 +153,7 @@ tbody tr.flag td { color: var(--danger); }
 .pill.ok { color: var(--positive); }
 .pill.muted { color: var(--ink-muted); }
 
-.empty { padding: 26px 10px; text-align: center; color: var(--ink-muted); font-size: 14px; border: 1px dashed var(--line); }
+.empty { padding: 30px 10px; text-align: center; color: var(--ink-muted); font-size: 15px; border: 1px dashed var(--line); border-radius: 12px; }
 
 .notif-item { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .notif-item .time { font-size: 11.5px; color: var(--ink-muted); font-family: 'IBM Plex Mono', monospace; margin-top: 4px; }
@@ -226,3 +228,93 @@ tbody td{padding:12px 8px;}
  .sidebar.open{box-shadow:20px 0 45px rgba(23,27,42,.18);border-right:1px solid var(--line)}
 }
 @media(min-width:1200px){.main{padding-left:44px;padding-right:44px}.grid-stats{grid-template-columns:repeat(3,minmax(190px,1fr));}}
+
+/* ===== NEW: Customer / payment feature + extra visual polish ===== */
+
+/* Payment method toggle (Telefoni / Amafaranga intoki) on the Sell form */
+.pay-toggle{display:flex;gap:10px;margin-bottom:2px;}
+.pay-opt{
+  flex:1;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);
+  background:#fff;font-size:14.5px;font-weight:600;color:var(--ink-muted);
+  transition:.18s ease;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.pay-opt:hover{border-color:var(--accent);color:var(--ink);transform:translateY(-1px);box-shadow:var(--shadow-sm);}
+.pay-opt.active{
+  border-color:var(--accent);color:var(--accent);
+  background:linear-gradient(135deg,#eef1fa,#e4e8f5);
+  box-shadow:0 6px 16px rgba(49,64,111,.16);
+}
+
+/* Payment badge shown in the sales history table */
+.pay-badge{
+  display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;
+  padding:5px 11px;border-radius:20px;white-space:nowrap;
+}
+.pay-badge.cash{background:var(--positive-soft);color:var(--positive);}
+.pay-badge.phone{background:var(--accent-soft);color:var(--accent);}
+
+/* History quick filter (Uyu munsi gusa / Byose) */
+.hist-filter{display:flex;gap:6px;}
+.hist-filter button{
+  background:#fff;border:1.5px solid var(--line);border-radius:20px;
+  padding:7px 16px;font-size:12.5px;font-weight:600;color:var(--ink-muted);transition:.16s;
+}
+.hist-filter button:hover{border-color:var(--accent);color:var(--accent);}
+.hist-filter button.active{background:var(--ink);border-color:var(--ink);color:#fff;}
+
+/* Extra button polish - more "attractive" primary/secondary actions */
+.btn-primary{
+  position:relative;overflow:hidden;letter-spacing:.01em;
+}
+.btn-primary:active{transform:translateY(0) scale(.98);}
+.btn-secondary{border-radius:11px;transition:.16s ease;}
+.btn-secondary:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm);border-color:var(--accent);color:var(--accent);}
+.btn-danger:hover{border-color:var(--danger)!important;color:var(--danger)!important;background:var(--danger-soft)!important;}
+
+/* Subtle glow accent on stat cards for more "life" */
+.stat{position:relative;overflow:hidden;}
+.stat:before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--accent),#7a8cc4,var(--accent));
+  background-size:200% 100%;opacity:0;transition:opacity .2s;
+}
+.stat:hover:before{opacity:1;animation:shimmer 2.4s linear infinite;}
+@keyframes shimmer{0%{background-position:0% 0;}100%{background-position:200% 0;}}
+.stat:hover{transform:translateY(-2px);}
+
+/* Pills for products low-stock etc get a touch more roundness/contrast */
+.pill{border-radius:20px;padding:3px 10px;}
+
+@media(max-width:800px){
+  .pay-toggle{gap:8px;}
+  .pay-opt{font-size:13px;padding:11px 8px;}
+  .topbar{flex-wrap:wrap;}
+}
+
+/* Row hover for readability */
+tbody tr:hover td{background:rgba(49,64,111,.035);}
+
+/* Bank payment badge */
+.pay-badge.bank{background:#eef4ec;color:#2f6b3f;}
+.pay-badge.paid{background:var(--positive-soft);color:var(--positive);}
+.pay-badge.debt{background:var(--danger-soft);color:var(--danger);font-weight:800;}
+tbody tr.flag td{background:rgba(163,59,46,.035);}
+
+/* ===== Customers dashboard ===== */
+.cust-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-bottom:22px;}
+.cust-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 20px;box-shadow:var(--shadow-sm);transition:.16s;cursor:pointer;
+}
+.cust-card:hover{box-shadow:var(--shadow);transform:translateY(-2px);border-color:var(--accent);}
+.cust-card .cust-name{font-size:16px;font-weight:700;margin-bottom:2px;}
+.cust-card .cust-sub{font-size:12.5px;color:var(--ink-muted);font-family:'IBM Plex Mono',monospace;margin-bottom:12px;}
+.cust-card .cust-stats{display:flex;justify-content:space-between;align-items:flex-end;}
+.cust-card .cust-total{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:var(--accent);}
+.cust-card .cust-count{font-size:12px;color:var(--ink-muted);}
+.filter-banner{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;
+  padding:11px 16px;margin-bottom:16px;font-size:14px;
+}
+.filter-banner button{background:none;border:1px solid currentColor;color:var(--accent);border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:600;}
