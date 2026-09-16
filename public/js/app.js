@@ -3,7 +3,9 @@ let state = {
   user: JSON.parse(localStorage.getItem('user') || 'null'),
   view: 'dashboard',
   authTab: 'login',
-  businessDetail: null // for superadmin drill-down
+  businessDetail: null, // for superadmin drill-down
+  historyFilter: 'all',
+  customerFilter: null
 };
 
 function fmtRWF(n) { return Math.round(n || 0).toLocaleString('en-US') + ' RWF'; }
@@ -145,7 +147,8 @@ function navItemsFor(role) {
     ['dashboard', t('dashboard')],
     ['products', t('products')],
     ['sell', t('sell')],
-    ['history', t('history')]
+    ['history', t('history')],
+    ['customers', t('customers')]
   ];
   if (role === 'admin') {
     return [...common, ['guests', t('guests')], ['payments', t('commission')], ['trash', t('trash')], ['audit', 'Audit log'], ['notifications', t('notifications')]];
@@ -238,6 +241,7 @@ async function renderBusinessView() {
   else if (view === 'products') html = await productsHtml();
   else if (view === 'sell') html = await sellHtml();
   else if (view === 'history') html = await historyHtml();
+  else if (view === 'customers') html = await customersHtml();
   else if (view === 'guests' && state.user.role === 'admin') html = await guestsHtml();
   else if (view === 'payments' && state.user.role === 'admin') html = await paymentsHtml();
   else if (view === 'trash' && state.user.role === 'admin') html = await trashHtml();
@@ -370,21 +374,141 @@ async function sellHtml() {
           </select>
         </div>
         <div class="field" style="margin:0;"><label>${t('quantity')}</label><input id="s-qty" type="number" min="1" value="1"></div>
-        <button class="btn-primary" id="sell-btn" ${products.length === 0 ? 'disabled' : ''} style="width:auto;">${t('recordSale')}</button>
       </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('customerName')}</label><input id="s-cname" type="text" placeholder="${t('customerName')}"></div>
+        <div class="field" style="margin:0;"><label>${t('customerPhone')}</label><input id="s-cphone" type="tel" placeholder="07XX XXX XXX"></div>
+      </div>
+      <div class="field"><label>${t('customerEmail')} (${t('optional')})</label><input id="s-cemail" type="email" placeholder="client@email.com"></div>
+      <div class="field">
+        <label>${t('paymentMethod')}</label>
+        <div class="pay-toggle">
+          <button type="button" class="pay-opt active" data-pay="cash">💵 ${t('cash')}</button>
+          <button type="button" class="pay-opt" data-pay="phone">📱 ${t('mobileMoney')}</button>
+          <button type="button" class="pay-opt" data-pay="bank">🏦 ${t('bank')}</button>
+        </div>
+      </div>
+      <div class="field" id="s-bankname-wrap" style="display:none;">
+        <label>${t('bankName')}</label>
+        <input id="s-bankname" type="text" list="bank-list" placeholder="${t('bankNamePlaceholder')}">
+        <datalist id="bank-list">
+          <option value="Bank of Kigali (BK)">
+          <option value="Equity Bank">
+          <option value="I&M Bank">
+          <option value="Cogebanque">
+          <option value="Ecobank">
+          <option value="KCB Bank">
+          <option value="Access Bank">
+          <option value="Urwego Bank">
+        </datalist>
+      </div>
+      <div class="field" style="max-width:280px;">
+        <label>${t('amountPaid')}</label>
+        <input id="s-amount" type="number" min="0" placeholder="${t('amountPaidHint')}">
+      </div>
+      <button class="btn-primary" id="sell-btn" ${products.length === 0 ? 'disabled' : ''} style="width:auto;">${t('recordSale')}</button>
       <div class="form-msg" id="sell-msg"></div>
     </div>
   `;
 }
 
-async function historyHtml() {
+async function customersHtml() {
   const sales = await API.get('/api/sales');
+  const map = new Map();
+  for (const s of sales) {
+    const key = (s.customerName || '—').trim().toLowerCase() + '|' + (s.customerPhone || '').trim();
+    if (!map.has(key)) {
+      map.set(key, {
+        name: s.customerName || '—',
+        phone: s.customerPhone || '',
+        email: s.customerEmail || '',
+        total: 0,
+        debt: 0,
+        count: 0,
+        last: s.timestamp
+      });
+    }
+    const c = map.get(key);
+    c.total += (s.amountPaid != null ? s.amountPaid : s.total);
+    const isDebt = s.paymentStatus === 'debt' || (s.balance != null && s.balance < 0);
+    if (isDebt) c.debt += Math.abs(s.balance || (s.total - s.amountPaid));
+    c.count += 1;
+    if (new Date(s.timestamp) > new Date(c.last)) c.last = s.timestamp;
+  }
+  const customers = [...map.values()].sort((a, b) => b.total - a.total);
   return `
-    <div class="topbar"><h2>${t('history')}</h2></div>
+    <div class="topbar"><h2>${t('customers')}</h2></div>
+    ${customers.length === 0 ? `<div class="empty">${t('noCustomersYet')}</div>` : `
+    <div class="cust-grid">
+      ${customers.map(c => `
+        <div class="cust-card" data-cust-filter="${esc(c.name)}">
+          <div class="cust-name">${esc(c.name)}</div>
+          <div class="cust-sub">${esc(c.phone || c.email || '—')}</div>
+          <div class="cust-stats">
+            <div>
+              <div class="cust-total">${fmtRWF(c.total)}</div>
+              <div class="cust-count">${c.count} ${t('purchases')} · ${fmtDate(c.last)}</div>
+            </div>
+          </div>
+          ${c.debt > 0 ? `<div style="margin-top:10px;"><span class="pay-badge debt">⚠️ ${t('debt')} · ${fmtRWF(c.debt)}</span></div>` : ''}
+        </div>
+      `).join('')}
+    </div>`}
+  `;
+}
+
+async function historyHtml() {
+  const allSales = await API.get('/api/sales');
+  const filter = state.historyFilter || 'all';
+  const isToday = (iso) => new Date(iso).toDateString() === new Date().toDateString();
+  let sales = filter === 'today' ? allSales.filter(s => isToday(s.timestamp)) : allSales;
+  if (state.customerFilter) {
+    sales = sales.filter(s => (s.customerName || '—') === state.customerFilter);
+  }
+  const payLabel = (s) => {
+    if (s.paymentMethod === 'phone') return `📱 ${t('mobileMoney')}`;
+    if (s.paymentMethod === 'bank') return `🏦 ${esc(s.bankName || t('bank'))}`;
+    return `💵 ${t('cash')}`;
+  };
+  const payClass = (s) => s.paymentMethod === 'phone' ? 'phone' : s.paymentMethod === 'bank' ? 'bank' : 'cash';
+  return `
+    <div class="topbar">
+      <h2>${t('history')}</h2>
+      <div class="hist-filter">
+        <button data-hist="all" class="${filter === 'all' ? 'active' : ''}">${t('allHistory')}</button>
+        <button data-hist="today" class="${filter === 'today' ? 'active' : ''}">${t('todayOnly')}</button>
+      </div>
+    </div>
+    ${state.customerFilter ? `
+      <div class="filter-banner">
+        <span>${t('showingHistoryFor')}: <strong>${esc(state.customerFilter)}</strong></span>
+        <button id="clear-cust-filter">${t('clearFilter')}</button>
+      </div>` : ''}
     ${sales.length === 0 ? `<div class="empty">—</div>` : `
-    <table><thead><tr><th>Itariki</th><th>${t('productName')}</th><th>${t('quantity')}</th><th>${t('price')}</th><th>Total</th></tr></thead><tbody>
-      ${sales.map(s => `<tr><td>${fmtDate(s.timestamp)}</td><td class="name-cell">${esc(s.productName)}</td><td>${s.qty}</td><td>${fmtRWF(s.unitPrice)}</td><td>${fmtRWF(s.total)}</td></tr>`).join('')}
-    </tbody></table>`}
+    <div style="overflow-x:auto;">
+    <table><thead><tr>
+      <th>${t('givenAt')}</th><th>${t('customerName')}</th><th>${t('productName')}</th><th>${t('quantity')}</th>
+      <th>Total</th><th>${t('paymentMethod')}</th><th>${t('amountPaid')}</th><th>${t('paymentStatus')}</th><th>${t('paidAt')}</th><th></th>
+    </tr></thead><tbody>
+      ${sales.map(s => {
+        const isDebt = s.paymentStatus === 'debt' || (s.balance != null && s.balance < 0);
+        return `<tr class="${isDebt ? 'flag' : ''}">
+        <td>${fmtDate(s.givenAt || s.timestamp)}</td>
+        <td class="name-cell">${esc(s.customerName || '—')}${s.customerPhone ? `<div style="font-size:11px;color:var(--ink-muted);font-family:'IBM Plex Mono',monospace;font-weight:400;">${esc(s.customerPhone)}</div>` : ''}</td>
+        <td class="name-cell">${esc(s.productName)}</td>
+        <td>${s.qty}</td>
+        <td>${fmtRWF(s.total)}</td>
+        <td><span class="pay-badge ${payClass(s)}">${payLabel(s)}</span></td>
+        <td>${s.amountPaid != null ? fmtRWF(s.amountPaid) : fmtRWF(s.total)}</td>
+        <td>${isDebt
+            ? `<span class="pay-badge debt">⚠️ ${t('debt')} · ${fmtRWF(Math.abs(s.balance || (s.total - s.amountPaid)))}</span>`
+            : `<span class="pay-badge paid">✅ ${t('paid')}</span>`}</td>
+        <td>${s.paidAt ? fmtDate(s.paidAt) : t('notApplicable')}</td>
+        <td>${isDebt ? `<button class="btn-secondary settle-btn" data-sale-id="${s.id}" style="padding:5px 10px;font-size:12px;">${t('settleDebt')}</button>` : ''}</td>
+      </tr>`;
+      }).join('')}
+    </tbody></table>
+    </div>`}
   `;
 }
 
@@ -502,17 +626,67 @@ function bindBusinessViewEvents(view) {
     });
   }
   if (view === 'sell') {
+    let selectedPayMethod = 'cash';
+    document.querySelectorAll('.pay-opt').forEach(pbtn => {
+      pbtn.addEventListener('click', () => {
+        document.querySelectorAll('.pay-opt').forEach(b => b.classList.remove('active'));
+        pbtn.classList.add('active');
+        selectedPayMethod = pbtn.dataset.pay;
+        const bankWrap = document.getElementById('s-bankname-wrap');
+        if (bankWrap) bankWrap.style.display = selectedPayMethod === 'bank' ? 'block' : 'none';
+      });
+    });
     const btn = document.getElementById('sell-btn');
     if (btn) btn.addEventListener('click', async () => {
       const productId = document.getElementById('s-product').value;
       const qty = parseInt(document.getElementById('s-qty').value, 10);
+      const customerName = document.getElementById('s-cname').value.trim();
+      const customerPhone = document.getElementById('s-cphone').value.trim();
+      const customerEmail = document.getElementById('s-cemail').value.trim();
+      const bankName = document.getElementById('s-bankname') ? document.getElementById('s-bankname').value.trim() : '';
+      const amountRaw = document.getElementById('s-amount').value;
+      const amountPaid = amountRaw === '' ? null : parseFloat(amountRaw);
       const msg = document.getElementById('sell-msg');
+      if (!customerName) {
+        msg.textContent = t('customerNameRequired');
+        msg.className = 'form-msg show error';
+        return;
+      }
       try {
-        await API.post('/api/sales', { productId, qty });
+        await API.post('/api/sales', { productId, qty, customerName, customerPhone, customerEmail, paymentMethod: selectedPayMethod, bankName, amountPaid });
         msg.textContent = 'Byakunze!';
         msg.className = 'form-msg show success';
         setTimeout(renderApp, 600);
       } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
+    });
+  }
+  if (view === 'history') {
+    document.querySelectorAll('[data-hist]').forEach(hbtn => {
+      hbtn.addEventListener('click', () => { state.historyFilter = hbtn.dataset.hist; renderApp(); });
+    });
+    const clearBtn = document.getElementById('clear-cust-filter');
+    if (clearBtn) clearBtn.addEventListener('click', () => { state.customerFilter = null; renderApp(); });
+    document.querySelectorAll('.settle-btn').forEach(sbtn => {
+      sbtn.addEventListener('click', async () => {
+        const amountStr = window.prompt(t('settleDebtAmount'));
+        if (amountStr === null) return;
+        const amount = parseFloat(amountStr);
+        if (!amount || amount <= 0) return;
+        try {
+          await API.patch(`/api/sales/${sbtn.dataset.saleId}/settle`, { amount });
+          renderApp();
+        } catch (e) { alert(e.message); }
+      });
+    });
+  }
+  if (view === 'customers') {
+    document.querySelectorAll('[data-cust-filter]').forEach(card => {
+      card.addEventListener('click', () => {
+        state.customerFilter = card.dataset.custFilter;
+        state.historyFilter = 'all';
+        state.view = 'history';
+        renderApp();
+      });
     });
   }
   if (view === 'guests') {
