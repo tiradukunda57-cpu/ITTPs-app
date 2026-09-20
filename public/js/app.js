@@ -5,7 +5,10 @@ let state = {
   authTab: 'login',
   businessDetail: null, // for superadmin drill-down
   historyFilter: 'all',
-  customerFilter: null
+  customerFilter: null,
+  dispatchTab: 'pending',
+  newDispatchItems: [],
+  returningDispatchId: null
 };
 
 function fmtRWF(n) { return Math.round(n || 0).toLocaleString('en-US') + ' RWF'; }
@@ -147,6 +150,7 @@ function navItemsFor(role) {
     ['dashboard', t('dashboard')],
     ['products', t('products')],
     ['sell', t('sell')],
+    ['dispatches', t('dispatches')],
     ['history', t('history')],
     ['customers', t('customers')]
   ];
@@ -240,6 +244,7 @@ async function renderBusinessView() {
   if (view === 'dashboard') html = await dashboardHtml();
   else if (view === 'products') html = await productsHtml();
   else if (view === 'sell') html = await sellHtml();
+  else if (view === 'dispatches') html = await dispatchesHtml();
   else if (view === 'history') html = await historyHtml();
   else if (view === 'customers') html = await customersHtml();
   else if (view === 'guests' && state.user.role === 'admin') html = await guestsHtml();
@@ -408,6 +413,163 @@ async function sellHtml() {
       </div>
       <button class="btn-primary" id="sell-btn" ${products.length === 0 ? 'disabled' : ''} style="width:auto;">${t('recordSale')}</button>
       <div class="form-msg" id="sell-msg"></div>
+    </div>
+  `;
+}
+
+// ===================== Kohereza Ibicuruzwa (Field Dispatch) =====================
+
+function relTime(iso) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return t('now');
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h${mins % 60 ? ' ' + (mins % 60) + 'min' : ''}`;
+  return fmtDate(iso);
+}
+
+async function dispatchesHtml() {
+  const tab = state.dispatchTab || 'pending';
+  const dispatches = await API.get('/api/dispatches');
+  const pending = dispatches.filter(d => d.status === 'pending');
+  const completed = dispatches.filter(d => d.status === 'returned');
+
+  let inner = '';
+  if (tab === 'new') inner = await dispatchNewFormHtml();
+  else if (tab === 'pending') inner = dispatchPendingHtml(pending);
+  else inner = dispatchCompletedHtml(completed);
+
+  return `
+    <div class="topbar">
+      <h2>${t('dispatches')}</h2>
+      <div class="hist-filter">
+        <button data-dtab="pending" class="${tab === 'pending' ? 'active' : ''}">${t('pendingDispatches')}${pending.length ? ` (${pending.length})` : ''}</button>
+        <button data-dtab="completed" class="${tab === 'completed' ? 'active' : ''}">${t('completedDispatches')}</button>
+        <button data-dtab="new" class="${tab === 'new' ? 'active' : ''}">+ ${t('newDispatch')}</button>
+      </div>
+    </div>
+    ${inner}
+  `;
+}
+
+async function dispatchNewFormHtml() {
+  const products = await API.get('/api/products');
+  const rows = state.newDispatchItems || [];
+  return `
+    <div class="card">
+      <h3 class="disp-section-title">${t('vendorName')}</h3>
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('vendorName')}</label><input id="d-vname" type="text" value="${esc((state.user && state.user.name) || '')}" placeholder="${t('vendorName')}"></div>
+        <div class="field" style="margin:0;"><label>${t('vendorContact')}</label><input id="d-vcontact" type="tel" value="${esc((state.user && state.user.phone) || '')}" placeholder="07XX XXX XXX"></div>
+        <div class="field" style="margin:0;"><label>${t('vendorEmail')} (${t('optional')})</label><input id="d-vemail" type="email" value="${esc((state.user && state.user.email) || '')}"></div>
+      </div>
+
+      <h3 class="disp-section-title" style="margin-top:22px;">${t('itemsToTake')}</h3>
+      <div class="sell-row" style="align-items:flex-end;">
+        <div class="field" style="margin:0;">
+          <label>${t('productName')}</label>
+          <select id="d-product">
+            ${products.length === 0 ? `<option value="">—</option>` :
+              products.map(p => `<option value="${p.id}" data-price="${p.price}" data-name="${esc(p.name)}" data-stock="${p.stock}">${esc(p.name)} — ${fmtRWF(p.price)} (${p.stock})</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="margin:0;max-width:130px;"><label>${t('quantity')}</label><input id="d-qty" type="number" min="1" value="1"></div>
+        <button class="btn-secondary" id="d-add-item" type="button" style="width:auto;">+ ${t('addItem')}</button>
+      </div>
+      <div class="form-msg" id="d-add-msg"></div>
+
+      ${rows.length > 0 ? `
+      <div style="overflow-x:auto;margin-top:14px;">
+      <table><thead><tr><th>${t('productName')}</th><th>${t('quantity')}</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map((r, i) => `<tr>
+          <td class="name-cell">${esc(r.name)}</td>
+          <td>${r.qty}</td>
+          <td><button class="btn-secondary remove-item-btn" data-idx="${i}" type="button" style="padding:4px 10px;font-size:12px;">${t('removeItem')}</button></td>
+        </tr>`).join('')}
+      </tbody></table>
+      </div>` : `<div class="empty" style="margin-top:14px;">—</div>`}
+
+      <button class="btn-primary" id="dispatch-submit-btn" style="width:auto;margin-top:18px;" ${rows.length === 0 ? 'disabled' : ''}>🚚 ${t('dispatchGoods')}</button>
+      <div class="form-msg" id="dispatch-msg"></div>
+    </div>
+  `;
+}
+
+function dispatchPendingHtml(pending) {
+  if (pending.length === 0) return `<div class="empty">${t('noPendingDispatches')}</div>`;
+  return `
+    <div class="disp-grid">
+      ${pending.map(d => `
+        <div class="disp-card">
+          <div class="disp-card-head">
+            <div>
+              <div class="cust-name">${esc(d.vendorName)}</div>
+              <div class="cust-sub">${esc(d.vendorContact || d.vendorEmail || '—')}</div>
+            </div>
+            <span class="pay-badge pending">🕒 ${t('pending')}</span>
+          </div>
+          <div class="disp-items">
+            ${d.items.map(it => `<div class="disp-item-row"><span>${esc(it.productName)}</span><span>${it.qtyTaken}</span></div>`).join('')}
+          </div>
+          <div class="disp-card-foot">
+            <span class="cust-count">${t('dispatchedAt')}: ${relTime(d.dispatchedAt)}</span>
+            <button class="btn-primary return-dispatch-btn" data-id="${d.id}" style="width:auto;padding:8px 16px;font-size:13px;">${t('markReturned')}</button>
+          </div>
+          ${state.returningDispatchId === d.id ? dispatchReturnFormHtml(d) : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function dispatchReturnFormHtml(d) {
+  return `
+    <div class="disp-return-form">
+      <div class="disp-return-grid">
+        ${d.items.map(it => `
+          <div class="field" style="margin:0;">
+            <label>${esc(it.productName)} — ${t('qtyTaken')}: ${it.qtyTaken}</label>
+            <input type="number" min="0" max="${it.qtyTaken}" value="0" class="return-qty-input" data-product-id="${it.productId}" placeholder="${t('qtyReturned')}">
+          </div>
+        `).join('')}
+      </div>
+      <div class="field" style="max-width:260px;margin-top:10px;">
+        <label>${t('amountCollected')}</label>
+        <input type="number" min="0" id="return-amount-${d.id}" placeholder="0">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px;">
+        <button class="btn-primary confirm-return-btn" data-id="${d.id}" style="width:auto;">${t('confirmReturn')}</button>
+        <button class="btn-secondary cancel-return-btn" style="width:auto;">✕</button>
+      </div>
+      <div class="form-msg" id="return-msg-${d.id}"></div>
+    </div>
+  `;
+}
+
+function dispatchCompletedHtml(completed) {
+  if (completed.length === 0) return `<div class="empty">${t('noCompletedDispatches')}</div>`;
+  return `
+    <div style="overflow-x:auto;">
+    <table><thead><tr>
+      <th>${t('vendorName')}</th><th>${t('dispatchedAt')}</th><th>${t('returnedAt')}</th>
+      <th>${t('amountCollected')}</th><th>${t('expectedAmount')}</th><th>${t('variance')}</th>
+    </tr></thead><tbody>
+      ${completed.map(d => {
+        const v = d.variance || 0;
+        const vLabel = v === 0 ? `✅ ${t('matches')}` : v < 0 ? `⚠️ ${t('shortfall')} · ${fmtRWF(Math.abs(v))}` : `💰 ${t('surplus')} · ${fmtRWF(v)}`;
+        const vClass = v === 0 ? 'paid' : v < 0 ? 'debt' : 'bank';
+        return `<tr>
+          <td class="name-cell">${esc(d.vendorName)}${d.vendorContact ? `<div style="font-size:11px;color:var(--ink-muted);font-family:'IBM Plex Mono',monospace;font-weight:400;">${esc(d.vendorContact)}</div>` : ''}</td>
+          <td>${fmtDate(d.dispatchedAt)}</td>
+          <td>${fmtDate(d.returnedAt)}</td>
+          <td>${fmtRWF(d.amountCollected)}</td>
+          <td>${fmtRWF(d.expectedAmount)}</td>
+          <td><span class="pay-badge ${vClass}">${vLabel}</span></td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>
     </div>
   `;
 }
@@ -686,6 +848,97 @@ function bindBusinessViewEvents(view) {
         state.historyFilter = 'all';
         state.view = 'history';
         renderApp();
+      });
+    });
+  }
+  if (view === 'dispatches') {
+    document.querySelectorAll('[data-dtab]').forEach(tbtn => {
+      tbtn.addEventListener('click', () => {
+        state.dispatchTab = tbtn.dataset.dtab;
+        state.returningDispatchId = null;
+        renderApp();
+      });
+    });
+
+    // ---- New dispatch form ----
+    const addBtn = document.getElementById('d-add-item');
+    if (addBtn) addBtn.addEventListener('click', () => {
+      const sel = document.getElementById('d-product');
+      const qtyInput = document.getElementById('d-qty');
+      const opt = sel.options[sel.selectedIndex];
+      const msg = document.getElementById('d-add-msg');
+      const qty = parseInt(qtyInput.value, 10);
+      if (!opt || !opt.value || !qty || qty < 1) {
+        msg.textContent = t('selectProductFirst');
+        msg.className = 'form-msg show error';
+        return;
+      }
+      const stock = parseInt(opt.dataset.stock, 10);
+      if (qty > stock) {
+        msg.textContent = `${opt.dataset.name}: ${stock} ${t('quantity')}`;
+        msg.className = 'form-msg show error';
+        return;
+      }
+      msg.textContent = '';
+      msg.className = 'form-msg';
+      const existing = state.newDispatchItems.find(r => r.productId === opt.value);
+      if (existing) existing.qty += qty;
+      else state.newDispatchItems.push({ productId: opt.value, name: opt.dataset.name, qty });
+      renderApp();
+    });
+
+    document.querySelectorAll('.remove-item-btn').forEach(rbtn => {
+      rbtn.addEventListener('click', () => {
+        state.newDispatchItems.splice(parseInt(rbtn.dataset.idx, 10), 1);
+        renderApp();
+      });
+    });
+
+    const submitBtn = document.getElementById('dispatch-submit-btn');
+    if (submitBtn) submitBtn.addEventListener('click', async () => {
+      const vendorName = document.getElementById('d-vname').value.trim();
+      const vendorContact = document.getElementById('d-vcontact').value.trim();
+      const vendorEmail = document.getElementById('d-vemail').value.trim();
+      const msg = document.getElementById('dispatch-msg');
+      if (!vendorName) {
+        msg.textContent = t('customerNameRequired');
+        msg.className = 'form-msg show error';
+        return;
+      }
+      try {
+        await API.post('/api/dispatches', {
+          vendorName, vendorContact, vendorEmail,
+          items: state.newDispatchItems.map(r => ({ productId: r.productId, qty: r.qty }))
+        });
+        state.newDispatchItems = [];
+        state.dispatchTab = 'pending';
+        renderApp();
+      } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
+    });
+
+    // ---- Pending list: open/cancel/confirm return ----
+    document.querySelectorAll('.return-dispatch-btn').forEach(rbtn => {
+      rbtn.addEventListener('click', () => {
+        state.returningDispatchId = rbtn.dataset.id;
+        renderApp();
+      });
+    });
+    document.querySelectorAll('.cancel-return-btn').forEach(cbtn => {
+      cbtn.addEventListener('click', () => { state.returningDispatchId = null; renderApp(); });
+    });
+    document.querySelectorAll('.confirm-return-btn').forEach(cbtn => {
+      cbtn.addEventListener('click', async () => {
+        const id = cbtn.dataset.id;
+        const qtyInputs = document.querySelectorAll(`.return-qty-input`);
+        const items = [...qtyInputs].map(inp => ({ productId: inp.dataset.productId, qtyReturned: parseInt(inp.value, 10) || 0 }));
+        const amountEl = document.getElementById(`return-amount-${id}`);
+        const amountCollected = amountEl.value === '' ? null : parseFloat(amountEl.value);
+        const msg = document.getElementById(`return-msg-${id}`);
+        try {
+          await API.patch(`/api/dispatches/${id}/return`, { items, amountCollected });
+          state.returningDispatchId = null;
+          renderApp();
+        } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
       });
     });
   }
