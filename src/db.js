@@ -20,6 +20,7 @@ const EMPTY_DB = {
   users: [],
   products: [],
   sales: [],
+  dispatches: [],
   auditLog: [],
   payments: [],
   loginAttempts: [],
