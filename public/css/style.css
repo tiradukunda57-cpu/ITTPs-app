@@ -298,7 +298,25 @@ tbody tr:hover td{background:rgba(49,64,111,.035);}
 .pay-badge.bank{background:#eef4ec;color:#2f6b3f;}
 .pay-badge.paid{background:var(--positive-soft);color:var(--positive);}
 .pay-badge.debt{background:var(--danger-soft);color:var(--danger);font-weight:800;}
+.pay-badge.pending{background:#fdf1de;color:#a5651a;font-weight:800;}
 tbody tr.flag td{background:rgba(163,59,46,.035);}
+
+/* ===== Dispatches (field sales) ===== */
+.disp-section-title{font-size:14px;font-weight:700;color:var(--ink);margin:0 0 12px;}
+.disp-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 20px;box-shadow:var(--shadow-sm);grid-column:span 1;
+}
+.disp-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+.disp-items{border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:8px 0;margin-bottom:10px;}
+.disp-item-row{display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0;color:var(--ink-muted);}
+.disp-item-row span:first-child{color:var(--ink);font-weight:600;}
+.disp-card-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.disp-return-form{
+  margin-top:14px;padding-top:14px;border-top:1.5px solid var(--accent);
+}
+.disp-return-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;}
+.disp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:22px;}
 
 /* ===== Customers dashboard ===== */
 .cust-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-bottom:22px;}
