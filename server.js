@@ -10,6 +10,7 @@ const { startCronJobs } = require('./src/services/cron');
 const authRoutes = require('./src/routes/auth');
 const productRoutes = require('./src/routes/products');
 const salesRoutes = require('./src/routes/sales');
+const dispatchRoutes = require('./src/routes/dispatches');
 const adminRoutes = require('./src/routes/admin');
 const superadminRoutes = require('./src/routes/superadmin');
 const paymentRoutes = require('./src/routes/payments');
@@ -32,6 +33,7 @@ app.get('/api/locales/:lang', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/sales', salesRoutes);
+app.use('/api/dispatches', dispatchRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/payments', paymentRoutes);
