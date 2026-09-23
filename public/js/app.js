@@ -8,7 +8,9 @@ let state = {
   customerFilter: null,
   dispatchTab: 'pending',
   newDispatchItems: [],
-  returningDispatchId: null
+  returningDispatchId: null,
+  procTab: 'pending',
+  newProcItems: []
 };
 
 function fmtRWF(n) { return Math.round(n || 0).toLocaleString('en-US') + ' RWF'; }
@@ -22,6 +24,48 @@ function esc(str) {
   return div.innerHTML;
 }
 function t(k) { return I18N.t(k); }
+
+// Uturere 30 tw'u Rwanda, buri kamwe hamwe n'umujyi wako uzwi cyane.
+const RW_DISTRICTS = [
+  { district: 'Nyarugenge', town: 'Nyarugenge (Kigali)' },
+  { district: 'Gasabo', town: 'Gasabo (Kigali)' },
+  { district: 'Kicukiro', town: 'Kicukiro (Kigali)' },
+  { district: 'Huye', town: 'Huye (Butare)' },
+  { district: 'Nyanza', town: 'Nyanza' },
+  { district: 'Gisagara', town: 'Gisagara' },
+  { district: 'Nyaruguru', town: 'Nyaruguru (Kibeho)' },
+  { district: 'Muhanga', town: 'Muhanga (Gitarama)' },
+  { district: 'Kamonyi', town: 'Kamonyi' },
+  { district: 'Ruhango', town: 'Ruhango' },
+  { district: 'Nyamagabe', town: 'Nyamagabe (Gikongoro)' },
+  { district: 'Rubavu', town: 'Rubavu (Gisenyi)' },
+  { district: 'Rusizi', town: 'Rusizi (Kamembe)' },
+  { district: 'Nyabihu', town: 'Nyabihu' },
+  { district: 'Ngororero', town: 'Ngororero' },
+  { district: 'Rutsiro', town: 'Rutsiro' },
+  { district: 'Karongi', town: 'Karongi (Kibuye)' },
+  { district: 'Nyamasheke', town: 'Nyamasheke' },
+  { district: 'Musanze', town: 'Musanze (Ruhengeri)' },
+  { district: 'Gicumbi', town: 'Gicumbi (Byumba)' },
+  { district: 'Rulindo', town: 'Rulindo' },
+  { district: 'Burera', town: 'Burera' },
+  { district: 'Gakenke', town: 'Gakenke' },
+  { district: 'Rwamagana', town: 'Rwamagana' },
+  { district: 'Nyagatare', town: 'Nyagatare' },
+  { district: 'Gatsibo', town: 'Gatsibo' },
+  { district: 'Kayonza', town: 'Kayonza' },
+  { district: 'Kirehe', town: 'Kirehe' },
+  { district: 'Ngoma', town: 'Ngoma (Kibungo)' },
+  { district: 'Bugesera', town: 'Bugesera (Nyamata)' }
+];
+
+// Amabanki akoreshwa cyane mu Rwanda
+const RW_BANKS = [
+  'Bank of Kigali (BK)', 'Equity Bank Rwanda', 'I&M Bank Rwanda', 'Cogebanque',
+  'Ecobank Rwanda', 'KCB Bank Rwanda', 'Access Bank Rwanda', 'Urwego Bank',
+  'GT Bank Rwanda', 'NCBA Bank Rwanda', 'Banque Populaire du Rwanda (BPR)',
+  'Zigama CSS', 'AB Bank Rwanda', 'Unguka Bank', 'Development Bank of Rwanda (BRD)'
+];
 
 async function init() {
   await I18N.load(state.user ? state.user.language : I18N.lang);
@@ -140,22 +184,22 @@ function renderRegisterForm() {
 function navItemsFor(role) {
   if (role === 'superadmin') {
     return [
-      ['pending', t('superadmin') + ': ' + 'Approvals'],
-      ['businesses', 'Businesses'],
-      ['notifications', t('notifications')],
-      ['auditlog', 'Audit log']
+      ['pending', '🕓', t('superadmin') + ': ' + 'Approvals'],
+      ['businesses', '🏢', 'Businesses'],
+      ['notifications', '🔔', t('notifications')],
+      ['auditlog', '📜', 'Audit log']
     ];
   }
   const common = [
-    ['dashboard', t('dashboard')],
-    ['products', t('products')],
-    ['sell', t('sell')],
-    ['dispatches', t('dispatches')],
-    ['history', t('history')],
-    ['customers', t('customers')]
+    ['dashboard', '📊', t('dashboard')],
+    ['products', '📦', t('products')],
+    ['sell', '🧾', t('sell')],
+    ['dispatches', '🚚', t('dispatches')],
+    ['history', '🕘', t('history')],
+    ['customers', '👥', t('customers')]
   ];
   if (role === 'admin') {
-    return [...common, ['guests', t('guests')], ['payments', t('commission')], ['trash', t('trash')], ['audit', 'Audit log'], ['notifications', t('notifications')]];
+    return [...common, ['procurements', '🛒', t('procurements')], ['guests', '🧑‍💼', t('guests')], ['payments', '💳', t('commission')], ['trash', '🗑️', t('trash')], ['audit', '📜', 'Audit log'], ['notifications', '🔔', t('notifications')]];
   }
   return common; // guest
 }
@@ -173,7 +217,7 @@ function renderShell(innerHtml) {
         <div class="brand"><img src="/logo.svg" alt="ITTP"><span>ITTP</span></div>
         <div class="role-tag">${role.toUpperCase()} · ${esc(state.user.name)}</div>
         <nav>
-          ${items.map(([key, label]) => `<button data-view="${key}" class="${state.view === key ? 'active' : ''}">${label}</button>`).join('')}
+          ${items.map(([key, icon, label]) => `<button data-view="${key}" class="${state.view === key ? 'active' : ''}"><span class="nav-icon">${icon}</span><span class="nav-label">${label}</span></button>`).join('')}
         </nav>
         <div class="divider"></div>
         ${langPickerInlineHtml()}
@@ -245,6 +289,7 @@ async function renderBusinessView() {
   else if (view === 'products') html = await productsHtml();
   else if (view === 'sell') html = await sellHtml();
   else if (view === 'dispatches') html = await dispatchesHtml();
+  else if (view === 'procurements') html = await procurementsHtml();
   else if (view === 'history') html = await historyHtml();
   else if (view === 'customers') html = await customersHtml();
   else if (view === 'guests' && state.user.role === 'admin') html = await guestsHtml();
@@ -275,12 +320,6 @@ async function dashboardHtml() {
     ${insights ? extraStatsHtml(insights) : ''}
     ${insights ? revenueChartHtml(insights.dailyRevenue) : ''}
     ${insights && insights.topProducts.length ? topProductsHtml(insights.topProducts) : ''}
-    <h3 style="margin-bottom:12px;">${t('lowStock')}</h3>
-    ${summary.lowStock.length === 0
-      ? `<div class="empty">—</div>`
-      : `<table><thead><tr><th>${t('productName')}</th><th>${t('stock')}</th></tr></thead><tbody>${
-          summary.lowStock.map(p => `<tr class="flag"><td class="name-cell">${esc(p.name)}</td><td>${p.stock}</td></tr>`).join('')
-        }</tbody></table>`}
   `;
 }
 
@@ -345,10 +384,18 @@ async function productsHtml() {
     ${isAdmin ? `
     <div class="card">
       <h3>${t('addProduct')}</h3>
-      <div class="form-row">
+      <div class="form-row" style="grid-template-columns:2fr 1fr 1fr 1fr;">
         <div class="field" style="margin:0;"><label>${t('productName')}</label><input id="p-name" type="text"></div>
         <div class="field" style="margin:0;"><label>${t('price')}</label><input id="p-price" type="number" min="0"></div>
         <div class="field" style="margin:0;"><label>${t('stock')}</label><input id="p-stock" type="number" min="0"></div>
+        <div class="field" style="margin:0;"><label>${t('unit')}</label>
+          <select id="p-unit">
+            <option value="unit">${t('unitPiece')}</option>
+            <option value="kg">${t('unitKg')}</option>
+            <option value="litre">${t('unitLitre')}</option>
+            <option value="metre">${t('unitMetre')}</option>
+          </select>
+        </div>
       </div>
       <button class="btn-secondary" id="add-product-btn">${t('addProduct')}</button>
       <div class="form-msg" id="product-msg"></div>
@@ -358,11 +405,18 @@ async function productsHtml() {
       ${products.map(p => `
         <tr class="${p.stock <= 5 ? 'flag' : ''}">
           <td class="name-cell">${esc(p.name)}${p.stock <= 5 ? `<span class="pill warn">${t('lowStock')}</span>` : ''}</td>
-          <td>${fmtRWF(p.price)}</td><td>${p.stock}</td>
+          <td>${fmtRWF(p.price)}</td><td>${p.stock} ${unitAbbrev(p.unit)}</td>
           ${isAdmin ? `<td><button class="btn-secondary btn-danger" data-del="${p.id}" style="padding:4px 10px;font-size:12px;">✕</button></td>` : ''}
         </tr>`).join('')}
     </tbody></table>`}
   `;
+}
+
+function unitAbbrev(unit) {
+  return unit === 'kg' ? 'kg' : unit === 'litre' ? 'L' : unit === 'metre' ? 'm' : t('unitPieceShort');
+}
+function unitLabel(unit) {
+  return unit === 'kg' ? t('unitKg') : unit === 'litre' ? t('unitLitre') : unit === 'metre' ? t('unitMetre') : t('unitPiece');
 }
 
 async function sellHtml() {
@@ -375,7 +429,7 @@ async function sellHtml() {
           <label>${t('productName')}</label>
           <select id="s-product">
             ${products.length === 0 ? `<option value="">—</option>` :
-              products.map(p => `<option value="${p.id}">${esc(p.name)} — ${fmtRWF(p.price)} (${p.stock})</option>`).join('')}
+              products.map(p => `<option value="${p.id}">${esc(p.name)} — ${fmtRWF(p.price)} (${p.stock} ${unitAbbrev(p.unit)})</option>`).join('')}
           </select>
         </div>
         <div class="field" style="margin:0;"><label>${t('quantity')}</label><input id="s-qty" type="number" min="1" value="1"></div>
@@ -397,14 +451,7 @@ async function sellHtml() {
         <label>${t('bankName')}</label>
         <input id="s-bankname" type="text" list="bank-list" placeholder="${t('bankNamePlaceholder')}">
         <datalist id="bank-list">
-          <option value="Bank of Kigali (BK)">
-          <option value="Equity Bank">
-          <option value="I&M Bank">
-          <option value="Cogebanque">
-          <option value="Ecobank">
-          <option value="KCB Bank">
-          <option value="Access Bank">
-          <option value="Urwego Bank">
+          ${RW_BANKS.map(b => `<option value="${esc(b)}">`).join('')}
         </datalist>
       </div>
       <div class="field" style="max-width:280px;">
@@ -471,7 +518,7 @@ async function dispatchNewFormHtml() {
           <label>${t('productName')}</label>
           <select id="d-product">
             ${products.length === 0 ? `<option value="">—</option>` :
-              products.map(p => `<option value="${p.id}" data-price="${p.price}" data-name="${esc(p.name)}" data-stock="${p.stock}">${esc(p.name)} — ${fmtRWF(p.price)} (${p.stock})</option>`).join('')}
+              products.map(p => `<option value="${p.id}" data-price="${p.price}" data-name="${esc(p.name)}" data-stock="${p.stock}">${esc(p.name)} — ${fmtRWF(p.price)} (${p.stock} ${unitAbbrev(p.unit)})</option>`).join('')}
           </select>
         </div>
         <div class="field" style="margin:0;max-width:130px;"><label>${t('quantity')}</label><input id="d-qty" type="number" min="1" value="1"></div>
@@ -567,6 +614,190 @@ function dispatchCompletedHtml(completed) {
           <td>${fmtRWF(d.amountCollected)}</td>
           <td>${fmtRWF(d.expectedAmount)}</td>
           <td><span class="pay-badge ${vClass}">${vLabel}</span></td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>
+    </div>
+  `;
+}
+
+// ===================== Kurangura (Procurement) =====================
+
+async function procurementsHtml() {
+  const tab = state.procTab || 'pending';
+  const list = await API.get('/api/procurements');
+  const pending = list.filter(p => p.status === 'pending');
+  const confirmed = list.filter(p => p.status === 'confirmed');
+
+  let inner = '';
+  if (tab === 'new') inner = await procNewFormHtml();
+  else if (tab === 'pending') inner = procPendingHtml(pending);
+  else inner = procConfirmedHtml(confirmed);
+
+  return `
+    <div class="topbar">
+      <h2>${t('procurements')}</h2>
+      <div class="hist-filter">
+        <button data-ptab="pending" class="${tab === 'pending' ? 'active' : ''}">${t('pendingProcurements')}${pending.length ? ` (${pending.length})` : ''}</button>
+        <button data-ptab="confirmed" class="${tab === 'confirmed' ? 'active' : ''}">${t('confirmedProcurements')}</button>
+        <button data-ptab="new" class="${tab === 'new' ? 'active' : ''}">+ ${t('newProcurement')}</button>
+      </div>
+    </div>
+    ${inner}
+  `;
+}
+
+async function procNewFormHtml() {
+  const products = await API.get('/api/products');
+  const rows = state.newProcItems || [];
+  return `
+    <div class="card">
+      <h3 class="disp-section-title">${t('itemsToProcure')}</h3>
+      <div class="sell-row" style="align-items:flex-end;flex-wrap:wrap;">
+        <div class="field" style="margin:0;">
+          <label>${t('productName')}</label>
+          <select id="pr-product">
+            <option value="__new__">＋ ${t('newProductEntry')}</option>
+            ${products.map(p => `<option value="${p.id}" data-name="${esc(p.name)}" data-unit="${p.unit || 'unit'}">${esc(p.name)} (${p.stock} ${unitAbbrev(p.unit)})</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" id="pr-new-name-wrap" style="margin:0;display:none;">
+          <label>${t('newProductName')}</label>
+          <input id="pr-new-name" type="text">
+        </div>
+        <div class="field" style="margin:0;max-width:110px;"><label>${t('quantity')}</label><input id="pr-qty" type="number" min="1" value="1"></div>
+        <div class="field" id="pr-unit-wrap" style="margin:0;max-width:130px;display:none;">
+          <label>${t('unit')}</label>
+          <select id="pr-unit">
+            <option value="unit">${t('unitPiece')}</option>
+            <option value="kg">${t('unitKg')}</option>
+            <option value="litre">${t('unitLitre')}</option>
+            <option value="metre">${t('unitMetre')}</option>
+          </select>
+        </div>
+        <div class="field" style="margin:0;max-width:150px;"><label>${t('unitCost')} (${t('optional')})</label><input id="pr-cost" type="number" min="0"></div>
+        <button class="btn-secondary" id="pr-add-item" type="button" style="width:auto;">+ ${t('addItem')}</button>
+      </div>
+      <div class="form-msg" id="pr-add-msg"></div>
+      ${rows.length > 0 ? `
+      <div style="overflow-x:auto;margin-top:14px;">
+      <table><thead><tr><th>${t('productName')}</th><th>${t('quantity')}</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map((r, i) => `<tr>
+          <td class="name-cell">${esc(r.productName || r.name)}</td>
+          <td>${r.qty} ${unitAbbrev(r.unit)}</td>
+          <td><button class="btn-secondary remove-proc-item-btn" data-idx="${i}" type="button" style="padding:4px 10px;font-size:12px;">${t('removeItem')}</button></td>
+        </tr>`).join('')}
+      </tbody></table>
+      </div>` : `<div class="empty" style="margin-top:14px;">—</div>`}
+    </div>
+
+    <div class="card">
+      <h3 class="disp-section-title">${t('destination')}</h3>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;">
+          <label>${t('district')}</label>
+          <select id="pr-district">
+            ${RW_DISTRICTS.map(d => `<option value="${esc(d.district)}">${esc(d.town)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="margin:0;"><label>${t('route')}</label><input id="pr-route" type="text" placeholder="${t('routePlaceholder')}"></div>
+      </div>
+      <div class="field" style="max-width:220px;"><label>${t('distanceKm')}</label><input id="pr-distance" type="number" min="0" placeholder="0"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="disp-section-title">${t('driverInfo')}</h3>
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('driverName')}</label><input id="pr-dname" type="text"></div>
+        <div class="field" style="margin:0;"><label>${t('driverPhone')}</label><input id="pr-dphone" type="tel"></div>
+        <div class="field" style="margin:0;"><label>${t('driverEmail')} (${t('optional')})</label><input id="pr-demail" type="email"></div>
+        <div class="field" style="margin:0;"><label>${t('plateNumber')}</label><input id="pr-plate" type="text" placeholder="RAD 123 A"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="disp-section-title">${t('supplierInfo')}</h3>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('supplierName')}</label><input id="pr-sname" type="text"></div>
+        <div class="field" style="margin:0;"><label>${t('supplierBusinessName')} (${t('optional')})</label><input id="pr-sbusiness" type="text"></div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('supplierPhone')}</label><input id="pr-sphone" type="tel"></div>
+        <div class="field" style="margin:0;"><label>${t('supplierEmail')} (${t('optional')})</label><input id="pr-semail" type="email"></div>
+      </div>
+      <div class="field"><label>${t('supplierLocation')}</label><input id="pr-slocation" type="text"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="disp-section-title">${t('paymentMethod')}</h3>
+      <div class="pay-toggle">
+        <button type="button" class="pay-opt active" data-ppay="cash">💵 ${t('cash')}</button>
+        <button type="button" class="pay-opt" data-ppay="phone">📱 ${t('mobileMoney')}</button>
+        <button type="button" class="pay-opt" data-ppay="bank">🏦 ${t('bank')}</button>
+        <button type="button" class="pay-opt" data-ppay="debt">📝 ${t('debt')}</button>
+      </div>
+      <div class="field" id="pr-bankname-wrap" style="display:none;margin-top:12px;">
+        <label>${t('bankName')}</label>
+        <input id="pr-bankname" type="text" list="bank-list-proc" placeholder="${t('bankNamePlaceholder')}">
+        <datalist id="bank-list-proc">${RW_BANKS.map(b => `<option value="${esc(b)}">`).join('')}</datalist>
+      </div>
+      <button class="btn-primary" id="proc-submit-btn" style="width:auto;margin-top:18px;" ${rows.length === 0 ? 'disabled' : ''}>🛒 ${t('startProcurement')}</button>
+      <div class="form-msg" id="proc-msg"></div>
+    </div>
+  `;
+}
+
+function procPendingHtml(pending) {
+  if (pending.length === 0) return `<div class="empty">${t('noPendingProcurements')}</div>`;
+  return `
+    <div class="disp-grid">
+      ${pending.map(p => `
+        <div class="disp-card">
+          <div class="disp-card-head">
+            <div>
+              <div class="cust-name">${esc(p.supplier.businessName || p.supplier.name)}</div>
+              <div class="cust-sub">${esc(p.destination.town)}${p.distanceKm ? ` · ${p.distanceKm} km` : ''}</div>
+            </div>
+            <span class="pay-badge pending">🕒 ${t('pending')}</span>
+          </div>
+          <div class="disp-items">
+            ${p.items.map(it => `<div class="disp-item-row"><span>${esc(it.productName || '—')}</span><span>${it.qty} ${unitAbbrev(it.unit)}</span></div>`).join('')}
+          </div>
+          <div style="font-size:12.5px;color:var(--ink-muted);line-height:1.7;margin-bottom:10px;">
+            🚚 ${esc(p.driver.name)}${p.driver.plateNumber ? ' · ' + esc(p.driver.plateNumber) : ''}${p.driver.phone ? ' · ' + esc(p.driver.phone) : ''}<br>
+            📍 ${esc(p.destination.route || '—')}
+          </div>
+          <div class="disp-card-foot">
+            <span class="cust-count">${t('startedAt')}: ${relTime(p.startedAt)}</span>
+            <button class="btn-primary confirm-proc-btn" data-id="${p.id}" style="width:auto;padding:8px 16px;font-size:13px;">✅ ${t('confirmArrival')}</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function procConfirmedHtml(confirmed) {
+  if (confirmed.length === 0) return `<div class="empty">${t('noConfirmedProcurements')}</div>`;
+  return `
+    <div style="overflow-x:auto;">
+    <table><thead><tr>
+      <th>${t('supplierInfo')}</th><th>${t('itemsToProcure')}</th><th>${t('destination')}</th>
+      <th>${t('startedAt')}</th><th>${t('arrivedAt')}</th><th>${t('paymentMethod')}</th>
+    </tr></thead><tbody>
+      ${confirmed.map(p => {
+        const payLabel = p.paymentMethod === 'phone' ? `📱 ${t('mobileMoney')}` :
+          p.paymentMethod === 'bank' ? `🏦 ${esc(p.bankName || t('bank'))}` :
+          p.paymentMethod === 'debt' ? `📝 ${t('debt')}` : `💵 ${t('cash')}`;
+        const payClass = p.paymentMethod === 'phone' ? 'phone' : p.paymentMethod === 'bank' ? 'bank' : p.paymentMethod === 'debt' ? 'debt' : 'cash';
+        return `<tr>
+          <td class="name-cell">${esc(p.supplier.name)}${p.supplier.businessName ? `<div style="font-size:11px;color:var(--ink-muted);font-weight:400;">${esc(p.supplier.businessName)}</div>` : ''}</td>
+          <td class="name-cell">${p.items.map(it => `${esc(it.productName)} (${it.qty}${unitAbbrev(it.unit)})`).join(', ')}</td>
+          <td>${esc(p.destination.town)}</td>
+          <td>${fmtDate(p.startedAt)}</td>
+          <td>${fmtDate(p.confirmedAt)}</td>
+          <td><span class="pay-badge ${payClass}">${payLabel}</span></td>
         </tr>`;
       }).join('')}
     </tbody></table>
@@ -773,9 +1004,10 @@ function bindBusinessViewEvents(view) {
       const name = document.getElementById('p-name').value.trim();
       const price = parseFloat(document.getElementById('p-price').value);
       const stock = parseInt(document.getElementById('p-stock').value, 10);
+      const unit = document.getElementById('p-unit').value;
       const msg = document.getElementById('product-msg');
       try {
-        await API.post('/api/products', { name, price, stock });
+        await API.post('/api/products', { name, price, stock, unit });
         renderApp();
       } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
     });
@@ -939,6 +1171,113 @@ function bindBusinessViewEvents(view) {
           state.returningDispatchId = null;
           renderApp();
         } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
+      });
+    });
+  }
+  if (view === 'procurements') {
+    document.querySelectorAll('[data-ptab]').forEach(tbtn => {
+      tbtn.addEventListener('click', () => { state.procTab = tbtn.dataset.ptab; renderApp(); });
+    });
+
+    // Product selector: toggle "new product" name field + unit field
+    const productSel = document.getElementById('pr-product');
+    if (productSel) {
+      const syncProductFields = () => {
+        const opt = productSel.options[productSel.selectedIndex];
+        const isNew = opt && opt.value === '__new__';
+        document.getElementById('pr-new-name-wrap').style.display = isNew ? 'block' : 'none';
+        document.getElementById('pr-unit-wrap').style.display = isNew ? 'block' : 'none';
+      };
+      productSel.addEventListener('change', syncProductFields);
+      syncProductFields();
+    }
+
+    const addItemBtn = document.getElementById('pr-add-item');
+    if (addItemBtn) addItemBtn.addEventListener('click', () => {
+      const sel = document.getElementById('pr-product');
+      const opt = sel.options[sel.selectedIndex];
+      const qty = parseInt(document.getElementById('pr-qty').value, 10);
+      const costRaw = document.getElementById('pr-cost').value;
+      const unitCost = costRaw === '' ? null : parseFloat(costRaw);
+      const msg = document.getElementById('pr-add-msg');
+      if (!qty || qty < 1) {
+        msg.textContent = t('selectProductFirst');
+        msg.className = 'form-msg show error';
+        return;
+      }
+      let row;
+      if (opt.value === '__new__') {
+        const newName = document.getElementById('pr-new-name').value.trim();
+        const unit = document.getElementById('pr-unit').value;
+        if (!newName) {
+          msg.textContent = t('selectProductFirst');
+          msg.className = 'form-msg show error';
+          return;
+        }
+        row = { productId: null, productName: newName, unit, qty, unitCost };
+      } else {
+        row = { productId: opt.value, productName: opt.dataset.name, unit: opt.dataset.unit, qty, unitCost };
+      }
+      msg.textContent = '';
+      msg.className = 'form-msg';
+      state.newProcItems.push(row);
+      renderApp();
+    });
+
+    document.querySelectorAll('.remove-proc-item-btn').forEach(rbtn => {
+      rbtn.addEventListener('click', () => {
+        state.newProcItems.splice(parseInt(rbtn.dataset.idx, 10), 1);
+        renderApp();
+      });
+    });
+
+    let selectedProcPay = 'cash';
+    document.querySelectorAll('[data-ppay]').forEach(pbtn => {
+      pbtn.addEventListener('click', () => {
+        document.querySelectorAll('[data-ppay]').forEach(b => b.classList.remove('active'));
+        pbtn.classList.add('active');
+        selectedProcPay = pbtn.dataset.ppay;
+        const bankWrap = document.getElementById('pr-bankname-wrap');
+        if (bankWrap) bankWrap.style.display = selectedProcPay === 'bank' ? 'block' : 'none';
+      });
+    });
+
+    const procSubmitBtn = document.getElementById('proc-submit-btn');
+    if (procSubmitBtn) procSubmitBtn.addEventListener('click', async () => {
+      const msg = document.getElementById('proc-msg');
+      const payload = {
+        items: state.newProcItems.map(r => ({ productId: r.productId, productName: r.productName, unit: r.unit, qty: r.qty, unitCost: r.unitCost })),
+        district: document.getElementById('pr-district').value,
+        town: (RW_DISTRICTS.find(d => d.district === document.getElementById('pr-district').value) || {}).town || '',
+        route: document.getElementById('pr-route').value.trim(),
+        distanceKm: document.getElementById('pr-distance').value,
+        driverName: document.getElementById('pr-dname').value.trim(),
+        driverPhone: document.getElementById('pr-dphone').value.trim(),
+        driverEmail: document.getElementById('pr-demail').value.trim(),
+        plateNumber: document.getElementById('pr-plate').value.trim(),
+        supplierName: document.getElementById('pr-sname').value.trim(),
+        supplierPhone: document.getElementById('pr-sphone').value.trim(),
+        supplierEmail: document.getElementById('pr-semail').value.trim(),
+        supplierBusinessName: document.getElementById('pr-sbusiness').value.trim(),
+        supplierLocation: document.getElementById('pr-slocation').value.trim(),
+        paymentMethod: selectedProcPay,
+        bankName: document.getElementById('pr-bankname') ? document.getElementById('pr-bankname').value.trim() : ''
+      };
+      try {
+        await API.post('/api/procurements', payload);
+        state.newProcItems = [];
+        state.procTab = 'pending';
+        renderApp();
+      } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
+    });
+
+    document.querySelectorAll('.confirm-proc-btn').forEach(cbtn => {
+      cbtn.addEventListener('click', async () => {
+        if (!confirm(t('confirmArrival') + '?')) return;
+        try {
+          await API.patch(`/api/procurements/${cbtn.dataset.id}/confirm`, {});
+          renderApp();
+        } catch (e) { alert(e.message); }
       });
     });
   }
