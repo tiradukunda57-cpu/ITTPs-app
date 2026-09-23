@@ -17,11 +17,13 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', requireRole('admin'), async (req, res) => {
-  const { name, price, stock } = req.body;
+  const { name, price, stock, unit } = req.body;
   if (!name || price == null || stock == null) {
     return res.status(400).json({ error: 'Uzuza izina, igiciro, n\'ubwinshi.' });
   }
   if (price < 0 || stock < 0) return res.status(400).json({ error: 'Igiciro n\'ubwinshi bigomba kuba byiza (birenze 0).' });
+  const allowedUnits = ['unit', 'kg', 'litre', 'metre'];
+  const finalUnit = allowedUnits.includes(unit) ? unit : 'unit';
 
   const data = db.read();
   const product = {
@@ -30,6 +32,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
     name,
     price: Number(price),
     stock: Number(stock),
+    unit: finalUnit,
     deletedAt: null,
     createdAt: new Date().toISOString()
   };
@@ -45,10 +48,12 @@ router.patch('/:id', requireRole('admin'), async (req, res) => {
   if (!product) return res.status(404).json({ error: 'Igicuruzwa ntikibonetse.' });
 
   const before = { ...product };
-  const { name, price, stock } = req.body;
+  const { name, price, stock, unit } = req.body;
+  const allowedUnits = ['unit', 'kg', 'litre', 'metre'];
   if (name != null) product.name = name;
   if (price != null) product.price = Number(price);
   if (stock != null) product.stock = Number(stock);
+  if (unit != null && allowedUnits.includes(unit)) product.unit = unit;
 
   await db.write(data);
   await logAudit({ actorId: req.user.id, action: 'update', entity: 'product', entityId: product.id, details: { before, after: product } });
