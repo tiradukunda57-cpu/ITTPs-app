@@ -10,7 +10,8 @@ let state = {
   newDispatchItems: [],
   returningDispatchId: null,
   procTab: 'pending',
-  newProcItems: []
+  newProcItems: [],
+  taxTab: 'status'
 };
 
 function fmtRWF(n) { return Math.round(n || 0).toLocaleString('en-US') + ' RWF'; }
@@ -199,7 +200,7 @@ function navItemsFor(role) {
     ['customers', '👥', t('customers')]
   ];
   if (role === 'admin') {
-    return [...common, ['procurements', '🛒', t('procurements')], ['guests', '🧑‍💼', t('guests')], ['payments', '💳', t('commission')], ['trash', '🗑️', t('trash')], ['audit', '📜', 'Audit log'], ['notifications', '🔔', t('notifications')]];
+    return [...common, ['procurements', '🛒', t('procurements')], ['tax', '🏛️', t('taxDashboard')], ['guests', '🧑‍💼', t('guests')], ['payments', '💳', t('commission')], ['trash', '🗑️', t('trash')], ['audit', '📜', 'Audit log'], ['notifications', '🔔', t('notifications')]];
   }
   return common; // guest
 }
@@ -290,6 +291,7 @@ async function renderBusinessView() {
   else if (view === 'sell') html = await sellHtml();
   else if (view === 'dispatches') html = await dispatchesHtml();
   else if (view === 'procurements') html = await procurementsHtml();
+  else if (view === 'tax') html = await taxHtml();
   else if (view === 'history') html = await historyHtml();
   else if (view === 'customers') html = await customersHtml();
   else if (view === 'guests' && state.user.role === 'admin') html = await guestsHtml();
@@ -632,6 +634,7 @@ async function procurementsHtml() {
   let inner = '';
   if (tab === 'new') inner = await procNewFormHtml();
   else if (tab === 'pending') inner = procPendingHtml(pending);
+  else if (tab === 'invoices') inner = procInvoicesHtml(confirmed);
   else inner = procConfirmedHtml(confirmed);
 
   return `
@@ -640,6 +643,7 @@ async function procurementsHtml() {
       <div class="hist-filter">
         <button data-ptab="pending" class="${tab === 'pending' ? 'active' : ''}">${t('pendingProcurements')}${pending.length ? ` (${pending.length})` : ''}</button>
         <button data-ptab="confirmed" class="${tab === 'confirmed' ? 'active' : ''}">${t('confirmedProcurements')}</button>
+        <button data-ptab="invoices" class="${tab === 'invoices' ? 'active' : ''}">🧾 ${t('invoices')}</button>
         <button data-ptab="new" class="${tab === 'new' ? 'active' : ''}">+ ${t('newProcurement')}</button>
       </div>
     </div>
@@ -742,8 +746,40 @@ async function procNewFormHtml() {
         <input id="pr-bankname" type="text" list="bank-list-proc" placeholder="${t('bankNamePlaceholder')}">
         <datalist id="bank-list-proc">${RW_BANKS.map(b => `<option value="${esc(b)}">`).join('')}</datalist>
       </div>
+      <div class="field" style="max-width:260px;margin-top:12px;">
+        <label>🧾 ${t('invoiceNumber')} (${t('optional')})</label>
+        <input id="pr-invoice" type="text" placeholder="${t('invoiceNumberPlaceholder')}">
+      </div>
       <button class="btn-primary" id="proc-submit-btn" style="width:auto;margin-top:18px;" ${rows.length === 0 ? 'disabled' : ''}>🛒 ${t('startProcurement')}</button>
       <div class="form-msg" id="proc-msg"></div>
+    </div>
+  `;
+}
+
+function procInvoicesHtml(confirmed) {
+  const withInvoices = confirmed; // buri gicuruzwa cyaranguwe kigira "fagitire" yacyo (invoice # ni bwo bushobozi)
+  if (withInvoices.length === 0) return `<div class="empty">${t('noInvoicesYet')}</div>`;
+  return `
+    <div class="disp-grid">
+      ${withInvoices.map(p => `
+        <div class="disp-card">
+          <div class="disp-card-head">
+            <div>
+              <div class="cust-name">🧾 ${p.invoiceNumber ? esc(p.invoiceNumber) : t('noInvoiceNumber')}</div>
+              <div class="cust-sub">${esc(p.supplier.businessName || p.supplier.name)}</div>
+            </div>
+            <span class="pay-badge paid">${fmtDate(p.confirmedAt)}</span>
+          </div>
+          <div class="disp-items">
+            ${p.items.map(it => `<div class="disp-item-row"><span>${esc(it.productName)}</span><span>${it.qty} ${unitAbbrev(it.unit)}</span></div>`).join('')}
+          </div>
+          <div style="font-size:12.5px;color:var(--ink-muted);line-height:1.8;">
+            👤 ${esc(p.supplier.name)}${p.supplier.phone ? ' · ' + esc(p.supplier.phone) : ''}${p.supplier.email ? ' · ' + esc(p.supplier.email) : ''}<br>
+            📍 ${esc(p.supplier.location || p.destination.town)}<br>
+            ${p.totalCost ? `💰 ${fmtRWF(p.totalCost)}` : ''}
+          </div>
+        </div>
+      `).join('')}
     </div>
   `;
 }
@@ -800,6 +836,162 @@ function procConfirmedHtml(confirmed) {
           <td><span class="pay-badge ${payClass}">${payLabel}</span></td>
         </tr>`;
       }).join('')}
+    </tbody></table>
+    </div>
+  `;
+}
+
+// ===================== Imisoro (RRA Tax Dashboard) =====================
+
+async function taxHtml() {
+  const tab = state.taxTab || 'status';
+  const [taxData, fines] = await Promise.all([
+    API.get('/api/tax/profile'),
+    API.get('/api/tax/fines')
+  ]);
+
+  let inner = '';
+  if (tab === 'status') inner = taxStatusHtml(taxData);
+  else if (tab === 'profile') inner = taxProfileFormHtml(taxData.profile);
+  else if (tab === 'fines') inner = taxFinesHtml(fines);
+  else inner = await taxHistoryHtml();
+
+  const unpaidFines = fines.filter(f => f.status === 'unpaid').length;
+
+  return `
+    <div class="topbar">
+      <h2>🏛️ ${t('taxDashboard')}</h2>
+      <div class="hist-filter">
+        <button data-ttab="status" class="${tab === 'status' ? 'active' : ''}">${t('taxStatus')}</button>
+        <button data-ttab="profile" class="${tab === 'profile' ? 'active' : ''}">${t('businessProfile')}</button>
+        <button data-ttab="fines" class="${tab === 'fines' ? 'active' : ''}">${t('fines')}${unpaidFines ? ` (${unpaidFines})` : ''}</button>
+        <button data-ttab="history" class="${tab === 'history' ? 'active' : ''}">${t('history')}</button>
+      </div>
+    </div>
+    <div class="tax-disclaimer">ℹ️ ${t('taxDisclaimer')}</div>
+    ${inner}
+  `;
+}
+
+function regimeLabel(regime) {
+  return regime === 'exempt' ? t('regimeExempt')
+    : regime === 'micro' ? t('regimeMicro')
+    : regime === 'lumpsum' ? t('regimeLumpsum')
+    : t('regimeReal');
+}
+
+function taxStatusHtml(data) {
+  const { profile, turnover, estimatedTax, daysRemaining, status } = data;
+  const bannerClass = status === 'overdue' ? 'tax-banner overdue' : status === 'due_soon' ? 'tax-banner due-soon' : 'tax-banner ok';
+  const bannerText = status === 'overdue'
+    ? `⚠️ ${t('taxOverdue')} (${Math.abs(daysRemaining)} ${t('daysAgo')})`
+    : status === 'due_soon'
+      ? `⏳ ${t('taxDueSoon')}: ${daysRemaining} ${t('daysRemaining')}`
+      : `✅ ${daysRemaining} ${t('daysRemaining')}`;
+
+  return `
+    <div class="${bannerClass}">
+      <div class="tax-banner-main">${bannerText}</div>
+      <div class="tax-banner-sub">${t('dueDate')}: ${fmtDate(profile.nextDueDate)}</div>
+    </div>
+
+    <div class="grid-stats" style="margin-top:18px;">
+      <div class="stat"><div class="label">${t('regime')}</div><div class="value" style="font-size:16px;">${regimeLabel(profile.regime)}</div></div>
+      <div class="stat"><div class="label">${t('turnoverSincePeriod')}</div><div class="value">${fmtRWF(turnover)}</div></div>
+      <div class="stat"><div class="label">${t('estimatedTaxDue')}</div><div class="value" style="color:var(--accent);">${fmtRWF(estimatedTax)}</div></div>
+    </div>
+
+    <div class="card" style="margin-top:8px;">
+      <h3 class="disp-section-title">${t('recordPayment')}</h3>
+      <div class="form-row" style="grid-template-columns:1fr 2fr;">
+        <div class="field" style="margin:0;"><label>${t('amountPaid')}</label><input id="tax-amount" type="number" min="0" value="${estimatedTax || ''}"></div>
+        <div class="field" style="margin:0;"><label>${t('note')} (${t('optional')})</label><input id="tax-note" type="text"></div>
+      </div>
+      <button class="btn-primary" id="tax-pay-btn" style="width:auto;">✅ ${t('markTaxPaid')}</button>
+      <div class="form-msg" id="tax-pay-msg"></div>
+    </div>
+  `;
+}
+
+function taxProfileFormHtml(profile) {
+  return `
+    <div class="card">
+      <h3 class="disp-section-title">${t('businessProfile')}</h3>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('tinNumber')}</label><input id="tp-tin" type="text" value="${esc(profile.tinNumber || '')}" placeholder="1XXXXXXXXX"></div>
+        <div class="field" style="margin:0;"><label>${t('businessType')}</label><input id="tp-btype" type="text" value="${esc(profile.businessType || '')}" placeholder="${t('businessTypePlaceholder')}"></div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('businessStartDate')}</label><input id="tp-start" type="date" value="${profile.startDate ? profile.startDate.slice(0, 10) : ''}"></div>
+        <div class="field" style="margin:0;">
+          <label>${t('taxRegime')}</label>
+          <select id="tp-regime">
+            <option value="exempt" ${profile.regime === 'exempt' ? 'selected' : ''}>${t('regimeExempt')}</option>
+            <option value="micro" ${profile.regime === 'micro' ? 'selected' : ''}>${t('regimeMicro')}</option>
+            <option value="lumpsum" ${profile.regime === 'lumpsum' ? 'selected' : ''}>${t('regimeLumpsum')}</option>
+            <option value="real" ${profile.regime === 'real' ? 'selected' : ''}>${t('regimeReal')}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;">
+          <label>${t('filingFrequency')}</label>
+          <select id="tp-freq">
+            <option value="annual" ${profile.filingFrequency === 'annual' ? 'selected' : ''}>${t('freqAnnual')}</option>
+            <option value="quarterly" ${profile.filingFrequency === 'quarterly' ? 'selected' : ''}>${t('freqQuarterly')}</option>
+            <option value="monthly" ${profile.filingFrequency === 'monthly' ? 'selected' : ''}>${t('freqMonthly')}</option>
+          </select>
+        </div>
+        <div class="field" style="margin:0;"><label>${t('nextDueDate')}</label><input id="tp-due" type="date" value="${profile.nextDueDate ? profile.nextDueDate.slice(0, 10) : ''}"></div>
+      </div>
+      <button class="btn-primary" id="tax-profile-save-btn" style="width:auto;">${t('save')}</button>
+      <div class="form-msg" id="tax-profile-msg"></div>
+    </div>
+  `;
+}
+
+function taxFinesHtml(fines) {
+  return `
+    <div class="card">
+      <h3 class="disp-section-title">${t('addFine')}</h3>
+      <div class="form-row" style="grid-template-columns:2fr 1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('fineReason')}</label><input id="fine-reason" type="text"></div>
+        <div class="field" style="margin:0;"><label>${t('amount')}</label><input id="fine-amount" type="number" min="0"></div>
+        <div class="field" style="margin:0;"><label>${t('dateIssued')}</label><input id="fine-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
+      </div>
+      <div class="field" style="max-width:280px;"><label>${t('fineReference')} (${t('optional')})</label><input id="fine-ref" type="text"></div>
+      <button class="btn-secondary" id="add-fine-btn">${t('addFine')}</button>
+      <div class="form-msg" id="fine-msg"></div>
+    </div>
+    ${fines.length === 0 ? `<div class="empty">${t('noFinesYet')}</div>` : `
+    <div style="overflow-x:auto;">
+    <table><thead><tr><th>${t('dateIssued')}</th><th>${t('fineReason')}</th><th>${t('amount')}</th><th>${t('status')}</th><th></th></tr></thead>
+    <tbody>
+      ${fines.map(f => `<tr class="${f.status === 'unpaid' ? 'flag' : ''}">
+        <td>${fmtDate(f.issuedAt)}</td>
+        <td class="name-cell">${esc(f.reason)}${f.reference ? `<div style="font-size:11px;color:var(--ink-muted);font-weight:400;">${esc(f.reference)}</div>` : ''}</td>
+        <td>${fmtRWF(f.amount)}</td>
+        <td>${f.status === 'paid' ? `<span class="pay-badge paid">✅ ${t('paid')}</span>` : `<span class="pay-badge debt">⚠️ ${t('unpaid')}</span>`}</td>
+        <td>${f.status === 'unpaid' ? `<button class="btn-secondary pay-fine-btn" data-id="${f.id}" style="padding:4px 10px;font-size:12px;">${t('markPaid')}</button>` : ''}</td>
+      </tr>`).join('')}
+    </tbody></table>
+    </div>`}
+  `;
+}
+
+async function taxHistoryHtml() {
+  const payments = await API.get('/api/tax/payments');
+  if (payments.length === 0) return `<div class="empty">${t('noTaxPaymentsYet')}</div>`;
+  return `
+    <div style="overflow-x:auto;">
+    <table><thead><tr><th>${t('dateIssued')}</th><th>${t('regime')}</th><th>${t('amountPaid')}</th><th>${t('note')}</th></tr></thead>
+    <tbody>
+      ${payments.map(p => `<tr>
+        <td>${fmtDate(p.paidAt)}</td>
+        <td>${regimeLabel(p.regime)}</td>
+        <td>${fmtRWF(p.amountPaid)}</td>
+        <td class="name-cell">${esc(p.note || '—')}</td>
+      </tr>`).join('')}
     </tbody></table>
     </div>
   `;
@@ -1261,7 +1453,8 @@ function bindBusinessViewEvents(view) {
         supplierBusinessName: document.getElementById('pr-sbusiness').value.trim(),
         supplierLocation: document.getElementById('pr-slocation').value.trim(),
         paymentMethod: selectedProcPay,
-        bankName: document.getElementById('pr-bankname') ? document.getElementById('pr-bankname').value.trim() : ''
+        bankName: document.getElementById('pr-bankname') ? document.getElementById('pr-bankname').value.trim() : '',
+        invoiceNumber: document.getElementById('pr-invoice').value.trim()
       };
       try {
         await API.post('/api/procurements', payload);
@@ -1276,6 +1469,61 @@ function bindBusinessViewEvents(view) {
         if (!confirm(t('confirmArrival') + '?')) return;
         try {
           await API.patch(`/api/procurements/${cbtn.dataset.id}/confirm`, {});
+          renderApp();
+        } catch (e) { alert(e.message); }
+      });
+    });
+  }
+  if (view === 'tax') {
+    document.querySelectorAll('[data-ttab]').forEach(tbtn => {
+      tbtn.addEventListener('click', () => { state.taxTab = tbtn.dataset.ttab; renderApp(); });
+    });
+
+    const payBtn = document.getElementById('tax-pay-btn');
+    if (payBtn) payBtn.addEventListener('click', async () => {
+      const amountPaid = document.getElementById('tax-amount').value;
+      const note = document.getElementById('tax-note').value.trim();
+      const msg = document.getElementById('tax-pay-msg');
+      try {
+        await API.post('/api/tax/payments', { amountPaid, note });
+        renderApp();
+      } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
+    });
+
+    const profileSaveBtn = document.getElementById('tax-profile-save-btn');
+    if (profileSaveBtn) profileSaveBtn.addEventListener('click', async () => {
+      const msg = document.getElementById('tax-profile-msg');
+      try {
+        await API.patch('/api/tax/profile', {
+          tinNumber: document.getElementById('tp-tin').value,
+          businessType: document.getElementById('tp-btype').value,
+          startDate: document.getElementById('tp-start').value,
+          regime: document.getElementById('tp-regime').value,
+          filingFrequency: document.getElementById('tp-freq').value,
+          nextDueDate: document.getElementById('tp-due').value
+        });
+        msg.textContent = '✓ ' + t('save');
+        msg.className = 'form-msg show success';
+      } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
+    });
+
+    const addFineBtn = document.getElementById('add-fine-btn');
+    if (addFineBtn) addFineBtn.addEventListener('click', async () => {
+      const reason = document.getElementById('fine-reason').value.trim();
+      const amount = document.getElementById('fine-amount').value;
+      const issuedAt = document.getElementById('fine-date').value;
+      const reference = document.getElementById('fine-ref').value.trim();
+      const msg = document.getElementById('fine-msg');
+      try {
+        await API.post('/api/tax/fines', { reason, amount, issuedAt, reference });
+        renderApp();
+      } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
+    });
+
+    document.querySelectorAll('.pay-fine-btn').forEach(pbtn => {
+      pbtn.addEventListener('click', async () => {
+        try {
+          await API.patch(`/api/tax/fines/${pbtn.dataset.id}/pay`, {});
           renderApp();
         } catch (e) { alert(e.message); }
       });
