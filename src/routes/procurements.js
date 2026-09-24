@@ -37,7 +37,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
     items, district, town, route, distanceKm,
     driverName, driverPhone, driverEmail, plateNumber,
     supplierName, supplierPhone, supplierEmail, supplierBusinessName, supplierLocation,
-    paymentMethod, bankName
+    paymentMethod, bankName, invoiceNumber
   } = req.body;
 
   if (!Array.isArray(items) || items.length === 0) {
@@ -67,11 +67,13 @@ router.post('/', requireRole('admin'), async (req, res) => {
 
   const businessId = businessIdOf(req.user);
   const now = new Date().toISOString();
+  const totalCost = lines.reduce((sum, l) => sum + (l.unitCost || 0) * l.qty, 0);
 
   const procurement = {
     id: db.genId('prc'),
     businessId,
     items: lines,
+    totalCost,
     destination: { district: (district || '').trim(), town: (town || '').trim(), route: (route || '').trim() },
     distanceKm: distanceKm != null && distanceKm !== '' ? Number(distanceKm) : null,
     driver: { name: driverName.trim(), phone: (driverPhone || '').trim(), email: (driverEmail || '').trim(), plateNumber: (plateNumber || '').trim() },
@@ -84,6 +86,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
     },
     paymentMethod: method,
     bankName: bank,
+    invoiceNumber: (invoiceNumber || '').trim(),
     status: 'pending',
     startedAt: now,
     confirmedAt: null,
