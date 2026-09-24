@@ -22,6 +22,8 @@ const EMPTY_DB = {
   sales: [],
   dispatches: [],
   procurements: [],
+  taxPayments: [],
+  fines: [],
   auditLog: [],
   payments: [],
   loginAttempts: [],
