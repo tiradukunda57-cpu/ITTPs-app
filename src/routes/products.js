@@ -22,7 +22,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
     return res.status(400).json({ error: 'Uzuza izina, igiciro, n\'ubwinshi.' });
   }
   if (price < 0 || stock < 0) return res.status(400).json({ error: 'Igiciro n\'ubwinshi bigomba kuba byiza (birenze 0).' });
-  const allowedUnits = ['unit', 'kg', 'litre', 'metre'];
+  const allowedUnits = ['unit', 'kg', 'litre', 'metre', 'carton', 'jerrycan'];
   const finalUnit = allowedUnits.includes(unit) ? unit : 'unit';
 
   const data = db.read();
@@ -49,7 +49,7 @@ router.patch('/:id', requireRole('admin'), async (req, res) => {
 
   const before = { ...product };
   const { name, price, stock, unit } = req.body;
-  const allowedUnits = ['unit', 'kg', 'litre', 'metre'];
+  const allowedUnits = ['unit', 'kg', 'litre', 'metre', 'carton', 'jerrycan'];
   if (name != null) product.name = name;
   if (price != null) product.price = Number(price);
   if (stock != null) product.stock = Number(stock);

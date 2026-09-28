@@ -40,6 +40,8 @@ function defaultProfile() {
   const now = new Date();
   const nextMarch31 = new Date(now.getFullYear() + (now.getMonth() > 2 ? 1 : 0), 2, 31).toISOString();
   return {
+    businessName: '',
+    businessAddress: '',
     tinNumber: '',
     businessType: '',
     startDate: '',
@@ -93,7 +95,7 @@ router.get('/profile', (req, res) => {
 });
 
 router.patch('/profile', requireRole('admin'), async (req, res) => {
-  const { tinNumber, businessType, startDate, regime, filingFrequency, nextDueDate } = req.body;
+  const { businessName, businessAddress, tinNumber, businessType, startDate, regime, filingFrequency, nextDueDate } = req.body;
   const data = db.read();
   const owner = getBusinessOwner(data, req.user.id);
   if (!owner) return res.status(404).json({ error: 'Business ntibonetse.' });
@@ -101,6 +103,8 @@ router.patch('/profile', requireRole('admin'), async (req, res) => {
   const current = owner.taxProfile || defaultProfile();
   owner.taxProfile = {
     ...current,
+    businessName: businessName != null ? businessName.trim() : current.businessName,
+    businessAddress: businessAddress != null ? businessAddress.trim() : current.businessAddress,
     tinNumber: tinNumber != null ? tinNumber.trim() : current.tinNumber,
     businessType: businessType != null ? businessType.trim() : current.businessType,
     startDate: startDate || current.startDate,

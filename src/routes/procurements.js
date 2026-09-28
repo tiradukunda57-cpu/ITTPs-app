@@ -56,7 +56,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
     lines.push({
       productId: it.productId || null,
       productName: (it.productName || '').trim(),
-      unit: ['unit', 'kg', 'litre', 'metre'].includes(it.unit) ? it.unit : 'unit',
+      unit: ['unit', 'kg', 'litre', 'metre', 'carton', 'jerrycan'].includes(it.unit) ? it.unit : 'unit',
       qty,
       unitCost: it.unitCost != null && it.unitCost !== '' ? Number(it.unitCost) : null
     });

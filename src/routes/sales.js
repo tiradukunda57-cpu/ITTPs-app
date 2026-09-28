@@ -8,7 +8,7 @@ router.use(requireAuth);
 
 // Admin na Guest bombi bemerewe kugurisha (kwandika igurisha).
 router.post('/', async (req, res) => {
-  const { productId, qty, customerName, customerPhone, customerEmail, paymentMethod, bankName, amountPaid } = req.body;
+  const { productId, qty, unitPrice, customerName, customerPhone, customerEmail, paymentMethod, bankName, amountPaid } = req.body;
   const quantity = Number(qty);
   if (!productId || !quantity || quantity < 1) {
     return res.status(400).json({ error: 'Hitamo igicuruzwa n\'umubare wemewe.' });
@@ -30,20 +30,33 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: `Ibisigaye ni ${product.stock} gusa.` });
   }
 
+  // Igiciro: nyir'ubucuruzi ashobora kwandika igiciro yihariye (urugero: kugabanyiriza
+  // umukiriya bitewe n'ubwinshi yaguze). Niba atacyanditse, dukoresha igiciro gisanzwe
+  // cy'igicuruzwa muri stock.
+  let priceToUse = product.price;
+  if (unitPrice !== undefined && unitPrice !== null && unitPrice !== '') {
+    const custom = Number(unitPrice);
+    if (!isNaN(custom) && custom >= 0) priceToUse = custom;
+  }
+
   product.stock -= quantity;
-  const total = product.price * quantity;
+  const total = priceToUse * quantity;
   let paid = amountPaid !== undefined && amountPaid !== null && amountPaid !== '' ? Number(amountPaid) : total;
   if (isNaN(paid) || paid < 0) paid = total;
   const now = new Date().toISOString();
   const isFullyPaid = paid >= total;
 
+  const invoiceSeq = data.sales.filter(s => s.businessId === businessId).length + 1;
+  const invoiceNo = `INV-${new Date().getFullYear()}-${String(invoiceSeq).padStart(5, '0')}`;
+
   const sale = {
     id: db.genId('sale'),
     businessId,
+    invoiceNo,
     productId: product.id,
     productName: product.name,
     qty: quantity,
-    unitPrice: product.price,
+    unitPrice: priceToUse,
     total,
     customerName: custName,
     customerPhone: custPhone,
