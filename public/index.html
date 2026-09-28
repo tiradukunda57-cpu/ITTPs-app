@@ -2,26 +2,56 @@
 <html lang="rw">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>ITTP — Igitabo cy'Ubucuruzi</title>
-<link rel="icon" href="/logo.svg">
+<meta name="description" content="Business management: sales, stock, procurement, invoices and tax tracking.">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#171b2a">
-
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ITTP">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-<link rel="apple-touch-icon" href="/logo.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
+<div id="offline-banner" class="offline-banner" hidden>📡 Nta internet / No internet connection — amakuru ntashobora guhinduka / data cannot be saved until you reconnect.</div>
 <div id="root"></div>
+<button id="install-btn" class="install-btn" hidden>📲 Install app</button>
 
 <script src="/js/api.js"></script>
 <script src="/js/i18n.js"></script>
 <script src="/js/app.js"></script>
-<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});</script>
+<script>
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+  // Offline notice (app ikenera internet kugira ngo stock n'amafaranga bihore ari ukuri)
+  const banner = document.getElementById('offline-banner');
+  const syncOnline = () => { banner.hidden = navigator.onLine; };
+  window.addEventListener('online', syncOnline);
+  window.addEventListener('offline', syncOnline);
+  syncOnline();
+
+  // "Install app" button (Android/Chrome/Edge). iOS: Share -> Add to Home Screen.
+  let deferredPrompt = null;
+  const installBtn = document.getElementById('install-btn');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.hidden = false;
+  });
+  installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installBtn.hidden = true;
+  });
+  window.addEventListener('appinstalled', () => { installBtn.hidden = true; });
+</script>
 </body>
 </html>
