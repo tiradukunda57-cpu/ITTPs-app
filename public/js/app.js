@@ -1,6 +1,6 @@
 const root = document.getElementById('root');
 let state = {
-  user: JSON.parse(localStorage.getItem('user') || 'null'),
+  user: JSON.parse(sessionStorage.getItem('user') || 'null'),
   view: 'dashboard',
   authTab: 'login',
   businessDetail: null, // for superadmin drill-down
@@ -76,12 +76,12 @@ async function init() {
 function setUser(user, token) {
   state.user = user;
   if (token) API.setToken(token);
-  localStorage.setItem('user', JSON.stringify(user));
+  sessionStorage.setItem('user', JSON.stringify(user));
 }
 
 function logout() {
   API.setToken(null);
-  localStorage.removeItem('user');
+  sessionStorage.removeItem('user');
   state.user = null;
   render();
 }
@@ -391,12 +391,7 @@ async function productsHtml() {
         <div class="field" style="margin:0;"><label>${t('price')}</label><input id="p-price" type="number" min="0"></div>
         <div class="field" style="margin:0;"><label>${t('stock')}</label><input id="p-stock" type="number" min="0"></div>
         <div class="field" style="margin:0;"><label>${t('unit')}</label>
-          <select id="p-unit">
-            <option value="unit">${t('unitPiece')}</option>
-            <option value="kg">${t('unitKg')}</option>
-            <option value="litre">${t('unitLitre')}</option>
-            <option value="metre">${t('unitMetre')}</option>
-          </select>
+          <select id="p-unit">${unitOptionsHtml('unit')}</select>
         </div>
       </div>
       <button class="btn-secondary" id="add-product-btn">${t('addProduct')}</button>
@@ -415,10 +410,19 @@ async function productsHtml() {
 }
 
 function unitAbbrev(unit) {
-  return unit === 'kg' ? 'kg' : unit === 'litre' ? 'L' : unit === 'metre' ? 'm' : t('unitPieceShort');
+  return unit === 'kg' ? 'kg' : unit === 'litre' ? 'L' : unit === 'metre' ? 'm'
+    : unit === 'carton' ? t('unitCartonShort') : unit === 'jerrycan' ? t('unitJerrycanShort') : t('unitPieceShort');
 }
 function unitLabel(unit) {
-  return unit === 'kg' ? t('unitKg') : unit === 'litre' ? t('unitLitre') : unit === 'metre' ? t('unitMetre') : t('unitPiece');
+  return unit === 'kg' ? t('unitKg') : unit === 'litre' ? t('unitLitre') : unit === 'metre' ? t('unitMetre')
+    : unit === 'carton' ? t('unitCarton') : unit === 'jerrycan' ? t('unitJerrycan') : t('unitPiece');
+}
+function unitOptionsHtml(selected) {
+  const opts = [
+    ['unit', t('unitPiece')], ['kg', t('unitKg')], ['litre', t('unitLitre')],
+    ['metre', t('unitMetre')], ['carton', t('unitCarton')], ['jerrycan', t('unitJerrycan')]
+  ];
+  return opts.map(([v, label]) => `<option value="${v}" ${selected === v ? 'selected' : ''}>${label}</option>`).join('');
 }
 
 async function sellHtml() {
@@ -431,10 +435,21 @@ async function sellHtml() {
           <label>${t('productName')}</label>
           <select id="s-product">
             ${products.length === 0 ? `<option value="">—</option>` :
-              products.map(p => `<option value="${p.id}">${esc(p.name)} — ${fmtRWF(p.price)} (${p.stock} ${unitAbbrev(p.unit)})</option>`).join('')}
+              products.map(p => `<option value="${p.id}" data-price="${p.price}">${esc(p.name)} — ${fmtRWF(p.price)} (${p.stock} ${unitAbbrev(p.unit)})</option>`).join('')}
           </select>
         </div>
         <div class="field" style="margin:0;"><label>${t('quantity')}</label><input id="s-qty" type="number" min="1" value="1"></div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;">
+          <label>${t('unitPriceLabel')}</label>
+          <input id="s-price" type="number" min="0" step="1">
+          <div class="field-hint">${t('unitPriceHint')}</div>
+        </div>
+        <div class="field" style="margin:0;">
+          <label>${t('totalAmount')}</label>
+          <div class="computed-total" id="s-total-display">0 RWF</div>
+        </div>
       </div>
       <div class="form-row" style="grid-template-columns:1fr 1fr;">
         <div class="field" style="margin:0;"><label>${t('customerName')}</label><input id="s-cname" type="text" placeholder="${t('customerName')}"></div>
@@ -672,12 +687,7 @@ async function procNewFormHtml() {
         <div class="field" style="margin:0;max-width:110px;"><label>${t('quantity')}</label><input id="pr-qty" type="number" min="1" value="1"></div>
         <div class="field" id="pr-unit-wrap" style="margin:0;max-width:130px;display:none;">
           <label>${t('unit')}</label>
-          <select id="pr-unit">
-            <option value="unit">${t('unitPiece')}</option>
-            <option value="kg">${t('unitKg')}</option>
-            <option value="litre">${t('unitLitre')}</option>
-            <option value="metre">${t('unitMetre')}</option>
-          </select>
+          <select id="pr-unit">${unitOptionsHtml('unit')}</select>
         </div>
         <div class="field" style="margin:0;max-width:150px;"><label>${t('unitCost')} (${t('optional')})</label><input id="pr-cost" type="number" min="0"></div>
         <button class="btn-secondary" id="pr-add-item" type="button" style="width:auto;">+ ${t('addItem')}</button>
@@ -918,6 +928,10 @@ function taxProfileFormHtml(profile) {
     <div class="card">
       <h3 class="disp-section-title">${t('businessProfile')}</h3>
       <div class="form-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;"><label>${t('businessName')}</label><input id="tp-bname" type="text" value="${esc(profile.businessName || '')}" placeholder="${t('businessNamePlaceholder')}"></div>
+        <div class="field" style="margin:0;"><label>${t('businessAddress')}</label><input id="tp-baddress" type="text" value="${esc(profile.businessAddress || '')}"></div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;">
         <div class="field" style="margin:0;"><label>${t('tinNumber')}</label><input id="tp-tin" type="text" value="${esc(profile.tinNumber || '')}" placeholder="1XXXXXXXXX"></div>
         <div class="field" style="margin:0;"><label>${t('businessType')}</label><input id="tp-btype" type="text" value="${esc(profile.businessType || '')}" placeholder="${t('businessTypePlaceholder')}"></div>
       </div>
@@ -1036,6 +1050,7 @@ async function customersHtml() {
             </div>
           </div>
           ${c.debt > 0 ? `<div style="margin-top:10px;"><span class="pay-badge debt">⚠️ ${t('debt')} · ${fmtRWF(c.debt)}</span></div>` : ''}
+          <button class="btn-secondary statement-btn" data-cust-name="${esc(c.name)}" style="margin-top:12px;padding:7px 12px;font-size:12.5px;width:100%;">📄 ${t('downloadStatement')}</button>
         </div>
       `).join('')}
     </div>`}
@@ -1089,7 +1104,7 @@ async function historyHtml() {
             ? `<span class="pay-badge debt">⚠️ ${t('debt')} · ${fmtRWF(Math.abs(s.balance || (s.total - s.amountPaid)))}</span>`
             : `<span class="pay-badge paid">✅ ${t('paid')}</span>`}</td>
         <td>${s.paidAt ? fmtDate(s.paidAt) : t('notApplicable')}</td>
-        <td>${isDebt ? `<button class="btn-secondary settle-btn" data-sale-id="${s.id}" style="padding:5px 10px;font-size:12px;">${t('settleDebt')}</button>` : ''}</td>
+        <td style="white-space:nowrap;"><button class="btn-secondary invoice-btn" data-sale-id="${s.id}" title="${t('downloadInvoice')}" style="padding:5px 10px;font-size:12px;">🧾 ${t('invoice')}</button>${isDebt ? ` <button class="btn-secondary settle-btn" data-sale-id="${s.id}" style="padding:5px 10px;font-size:12px;">${t('settleDebt')}</button>` : ''}</td>
       </tr>`;
       }).join('')}
     </tbody></table>
@@ -1222,10 +1237,30 @@ function bindBusinessViewEvents(view) {
         if (bankWrap) bankWrap.style.display = selectedPayMethod === 'bank' ? 'block' : 'none';
       });
     });
+
+    const productSel = document.getElementById('s-product');
+    const priceInput = document.getElementById('s-price');
+    const qtyInput = document.getElementById('s-qty');
+    const totalDisplay = document.getElementById('s-total-display');
+    const updateTotal = () => {
+      const price = parseFloat(priceInput.value) || 0;
+      const qty = parseInt(qtyInput.value, 10) || 0;
+      totalDisplay.textContent = fmtRWF(price * qty);
+    };
+    const fillDefaultPrice = () => {
+      const opt = productSel.options[productSel.selectedIndex];
+      if (opt && opt.dataset.price) priceInput.value = opt.dataset.price;
+      updateTotal();
+    };
+    if (productSel) { productSel.addEventListener('change', fillDefaultPrice); fillDefaultPrice(); }
+    if (priceInput) priceInput.addEventListener('input', updateTotal);
+    if (qtyInput) qtyInput.addEventListener('input', updateTotal);
+
     const btn = document.getElementById('sell-btn');
     if (btn) btn.addEventListener('click', async () => {
       const productId = document.getElementById('s-product').value;
       const qty = parseInt(document.getElementById('s-qty').value, 10);
+      const unitPrice = document.getElementById('s-price').value;
       const customerName = document.getElementById('s-cname').value.trim();
       const customerPhone = document.getElementById('s-cphone').value.trim();
       const customerEmail = document.getElementById('s-cemail').value.trim();
@@ -1239,7 +1274,7 @@ function bindBusinessViewEvents(view) {
         return;
       }
       try {
-        await API.post('/api/sales', { productId, qty, customerName, customerPhone, customerEmail, paymentMethod: selectedPayMethod, bankName, amountPaid });
+        await API.post('/api/sales', { productId, qty, unitPrice, customerName, customerPhone, customerEmail, paymentMethod: selectedPayMethod, bankName, amountPaid });
         msg.textContent = 'Byakunze!';
         msg.className = 'form-msg show success';
         setTimeout(renderApp, 600);
@@ -1252,6 +1287,14 @@ function bindBusinessViewEvents(view) {
     });
     const clearBtn = document.getElementById('clear-cust-filter');
     if (clearBtn) clearBtn.addEventListener('click', () => { state.customerFilter = null; renderApp(); });
+    document.querySelectorAll('.invoice-btn').forEach(ibtn => {
+      ibtn.addEventListener('click', async () => {
+        ibtn.disabled = true;
+        try { await API.download(`/api/invoices/sale/${ibtn.dataset.saleId}`, 'invoice.pdf'); }
+        catch (e) { alert(e.message); }
+        ibtn.disabled = false;
+      });
+    });
     document.querySelectorAll('.settle-btn').forEach(sbtn => {
       sbtn.addEventListener('click', async () => {
         const amountStr = window.prompt(t('settleDebtAmount'));
@@ -1266,6 +1309,15 @@ function bindBusinessViewEvents(view) {
     });
   }
   if (view === 'customers') {
+    document.querySelectorAll('.statement-btn').forEach(sbtn => {
+      sbtn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        sbtn.disabled = true;
+        try { await API.download(`/api/invoices/customer?name=${encodeURIComponent(sbtn.dataset.custName)}`, 'statement.pdf'); }
+        catch (e) { alert(e.message); }
+        sbtn.disabled = false;
+      });
+    });
     document.querySelectorAll('[data-cust-filter]').forEach(card => {
       card.addEventListener('click', () => {
         state.customerFilter = card.dataset.custFilter;
@@ -1495,6 +1547,8 @@ function bindBusinessViewEvents(view) {
       const msg = document.getElementById('tax-profile-msg');
       try {
         await API.patch('/api/tax/profile', {
+          businessName: document.getElementById('tp-bname').value,
+          businessAddress: document.getElementById('tp-baddress').value,
           tinNumber: document.getElementById('tp-tin').value,
           businessType: document.getElementById('tp-btype').value,
           startDate: document.getElementById('tp-start').value,
