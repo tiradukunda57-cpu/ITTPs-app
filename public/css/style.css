@@ -334,6 +334,11 @@ tbody tr.flag td{background:rgba(163,59,46,.035);}
 @keyframes pulse-warn{0%,100%{box-shadow:0 0 0 0 rgba(163,59,46,.25);}50%{box-shadow:0 0 0 8px rgba(163,59,46,0);}}
 .tax-banner-main{font-size:19px;font-weight:800;}
 .tax-banner-sub{font-size:13px;color:var(--ink-muted);}
+.field-hint{font-size:11.5px;color:var(--ink-muted);margin-top:4px;}
+.computed-total{
+  font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;color:var(--accent);
+  background:var(--accent-soft);border-radius:10px;padding:10px 14px;
+}
 
 /* ===== Customers dashboard ===== */
 .cust-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-bottom:22px;}
@@ -353,3 +358,112 @@ tbody tr.flag td{background:rgba(163,59,46,.035);}
   padding:11px 16px;margin-bottom:16px;font-size:14px;
 }
 .filter-banner button{background:none;border:1px solid currentColor;color:var(--accent);border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:600;}
+
+/* =====================================================================
+   DESIGN v2 — "Modern Business" theme
+   Deep-navy sidebar, warm gold accent, soft page backdrop, elevated cards,
+   rounded tables, pill tabs. Purely visual: no layout/logic changes.
+   ===================================================================== */
+:root{
+  --navy-900:#0f1526; --navy-800:#161f38; --navy-700:#1f2b4d; --navy-600:#2b3a66;
+  --gold:#d9a441; --gold-soft:#f6e7c4;
+  --radius:16px;
+  --shadow-sm:0 1px 2px rgba(15,21,38,.05),0 4px 14px rgba(15,21,38,.05);
+  --shadow:0 2px 4px rgba(15,21,38,.06),0 14px 34px rgba(15,21,38,.10);
+}
+body{
+  background:
+    radial-gradient(1100px 520px at 88% -8%, rgba(217,164,65,.14), transparent 60%),
+    radial-gradient(900px 520px at -8% 108%, rgba(43,58,102,.10), transparent 60%),
+    #f4f1ea;
+  letter-spacing:.005em;
+}
+body:before{opacity:.10;}
+
+/* ---- Sidebar (dark) ---- */
+.sidebar{
+  background:linear-gradient(180deg,var(--navy-900) 0%,var(--navy-800) 55%,var(--navy-700) 100%);
+  border-right:0; color:#e7ebf6; padding:24px 14px; backdrop-filter:none;
+  box-shadow:6px 0 30px rgba(15,21,38,.18);
+}
+.sidebar .brand{color:#fff;font-size:21px;}
+.sidebar .brand img{box-shadow:0 0 0 2px rgba(217,164,65,.55),0 6px 16px rgba(0,0,0,.35);}
+.sidebar .role-tag{color:var(--gold);letter-spacing:.06em;font-size:11px;font-weight:700;opacity:.95;}
+.sidebar nav button{color:#b9c2dc;font-weight:600;}
+.sidebar nav button:hover{background:rgba(255,255,255,.07);color:#fff;transform:translateX(2px);}
+.sidebar nav button.active{
+  background:linear-gradient(90deg,rgba(217,164,65,.22),rgba(217,164,65,.06));
+  color:#fff;box-shadow:none;border-left:3px solid var(--gold);
+}
+.sidebar nav button .nav-icon{opacity:.9;filter:saturate(1.1);}
+.sidebar .divider{background:rgba(255,255,255,.10);}
+.sidebar .logout-btn{color:#9fb0d8;border-radius:10px;padding:10px 12px;}
+.sidebar .logout-btn:hover{color:#ffb4a8;background:rgba(255,255,255,.06);}
+.sidebar .lang-picker-inline button,
+.sidebar .lang-picker button{background:transparent!important;color:#b9c2dc!important;border:1px solid rgba(255,255,255,.18)!important;}
+.sidebar .lang-picker-inline button.active,
+.sidebar .lang-picker button.active{background:var(--gold)!important;color:var(--navy-900)!important;border-color:var(--gold)!important;font-weight:700;}
+.mobile-topbar{background:var(--navy-900);color:#fff;box-shadow:0 4px 18px rgba(15,21,38,.25);}
+.mobile-topbar button{color:#fff;border-color:rgba(255,255,255,.35);border-radius:9px;}
+.sidebar.open{box-shadow:20px 0 45px rgba(15,21,38,.35);}
+
+/* ---- Page header + tabs ---- */
+.topbar h2{font-size:28px;font-weight:800;color:var(--navy-800);}
+.hist-filter{background:rgba(255,255,255,.7);padding:4px;border-radius:999px;border:1px solid rgba(15,21,38,.06);box-shadow:var(--shadow-sm);flex-wrap:wrap;}
+.hist-filter button{border:0;background:transparent;border-radius:999px;padding:8px 16px;color:var(--ink-muted);}
+.hist-filter button:hover{background:rgba(43,58,102,.07);color:var(--navy-700);}
+.hist-filter button.active{background:linear-gradient(135deg,var(--navy-800),var(--navy-600));color:#fff;box-shadow:0 6px 14px rgba(31,43,77,.28);}
+
+/* ---- Cards / stats ---- */
+.card,.disp-card,.cust-card{border:1px solid rgba(15,21,38,.06);background:#fff;}
+.stat{border:1px solid rgba(15,21,38,.06);background:#fff;padding:20px 22px;}
+.stat:before{background:linear-gradient(90deg,var(--gold),var(--navy-600));opacity:1;height:3px;animation:none;}
+.stat .label{text-transform:uppercase;letter-spacing:.06em;font-size:11px;font-weight:700;color:var(--ink-muted);}
+.stat .value{color:var(--navy-800);}
+.disp-section-title{color:var(--navy-700);font-size:15px;letter-spacing:.01em;}
+
+/* ---- Tables ---- */
+table{border-collapse:separate;border-spacing:0;background:#fff;border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm);border:1px solid rgba(15,21,38,.06);}
+thead th{background:#f3efe6;color:var(--navy-700);border-bottom:1px solid rgba(15,21,38,.08);}
+tbody td{border-bottom:1px solid rgba(15,21,38,.05);}
+tbody tr:last-child td{border-bottom:0;}
+tbody tr:hover td{background:rgba(217,164,65,.07);}
+
+/* ---- Inputs & buttons ---- */
+.field input,.field select{border:1.5px solid #e2ddd0;background:#fff;border-radius:12px;padding:11px 13px;font-size:15px;}
+.field input:focus,.field select:focus{border-color:var(--navy-600);box-shadow:0 0 0 4px rgba(43,58,102,.12);outline:0;}
+.btn-primary{background:linear-gradient(135deg,var(--navy-800),var(--navy-600));border-radius:12px;font-weight:700;letter-spacing:.01em;box-shadow:0 10px 22px rgba(31,43,77,.28);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 14px 28px rgba(31,43,77,.34);}
+.btn-secondary{border-radius:12px;background:#fff;border:1.5px solid #ddd6c6;color:var(--navy-700);font-weight:600;}
+.btn-secondary:hover{border-color:var(--gold);color:var(--navy-900);background:var(--gold-soft);}
+.pay-opt.active{border-color:var(--navy-600);color:var(--navy-700);background:linear-gradient(135deg,#eef1fb,#e3e8f7);}
+.pay-badge.pending{background:var(--gold-soft);color:#8a5a0a;}
+.computed-total{background:var(--gold-soft);color:var(--navy-800);}
+.empty{background:rgba(255,255,255,.6);border:1.5px dashed #d9d2c0;}
+
+/* ---- Auth screen ---- */
+.auth-shell{
+  background:
+    radial-gradient(900px 500px at 15% 10%, rgba(217,164,65,.22), transparent 60%),
+    radial-gradient(900px 600px at 90% 95%, rgba(43,58,102,.35), transparent 60%),
+    linear-gradient(160deg,var(--navy-900),var(--navy-700));
+  min-height:100vh;
+}
+.auth-card{border:0;box-shadow:0 30px 80px rgba(0,0,0,.35);}
+.auth-card:before{color:var(--navy-600);}
+.auth-tabs button.active{border-bottom-color:var(--gold);color:var(--navy-800);}
+.auth-shell .lang-picker button{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.3);}
+.auth-shell .lang-picker button.active{background:var(--gold);color:var(--navy-900);border-color:var(--gold);}
+
+/* ---- PWA helpers ---- */
+.install-btn{
+  position:fixed;right:16px;bottom:16px;z-index:90;border:0;border-radius:999px;padding:12px 18px;
+  background:linear-gradient(135deg,var(--gold),#c48a1f);color:var(--navy-900);font-weight:800;
+  box-shadow:0 12px 28px rgba(0,0,0,.28);cursor:pointer;
+}
+.install-btn[hidden],.offline-banner[hidden]{display:none;}
+.offline-banner{
+  position:sticky;top:0;z-index:100;background:#7a2a1f;color:#fff;text-align:center;
+  padding:9px 14px;font-size:13px;font-weight:600;
+}
+@media print{.sidebar,.mobile-topbar,.install-btn,.offline-banner{display:none!important}}
