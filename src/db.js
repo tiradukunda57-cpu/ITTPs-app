@@ -27,7 +27,10 @@ const EMPTY_DB = {
   auditLog: [],
   payments: [],
   loginAttempts: [],
-  notifications: []
+  notifications: [],
+  payables: [],
+  expenses: [],
+  journalEntries: []
 };
 
 let cache = null;   // Imibiko y'amakuru iri muri memory (yihuse gusoma)
