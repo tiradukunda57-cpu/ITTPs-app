@@ -11,7 +11,12 @@ let state = {
   returningDispatchId: null,
   procTab: 'pending',
   newProcItems: [],
-  taxTab: 'status'
+  taxTab: 'status',
+  debtTab: 'receivables',
+  debtSummary: null,
+  booksTab: 'overview',
+  booksFrom: '',
+  booksTo: ''
 };
 
 function fmtRWF(n) { return Math.round(n || 0).toLocaleString('en-US') + ' RWF'; }
@@ -197,10 +202,11 @@ function navItemsFor(role) {
     ['sell', '🧾', t('sell')],
     ['dispatches', '🚚', t('dispatches')],
     ['history', '🕘', t('history')],
-    ['customers', '👥', t('customers')]
+    ['customers', '👥', t('customers')],
+    ['debts', '💰', t('debts')]
   ];
   if (role === 'admin') {
-    return [...common, ['procurements', '🛒', t('procurements')], ['tax', '🏛️', t('taxDashboard')], ['guests', '🧑‍💼', t('guests')], ['payments', '💳', t('commission')], ['trash', '🗑️', t('trash')], ['audit', '📜', 'Audit log'], ['notifications', '🔔', t('notifications')]];
+    return [...common, ['procurements', '🛒', t('procurements')], ['tax', '🏛️', t('taxDashboard')], ['books', '📚', t('books')], ['guests', '🧑‍💼', t('guests')], ['payments', '💳', t('commission')], ['trash', '🗑️', t('trash')], ['audit', '📜', 'Audit log'], ['notifications', '🔔', t('notifications')]];
   }
   return common; // guest
 }
@@ -218,7 +224,7 @@ function renderShell(innerHtml) {
         <div class="brand"><img src="/logo.svg" alt="ITTP"><span>ITTP</span></div>
         <div class="role-tag">${role.toUpperCase()} · ${esc(state.user.name)}</div>
         <nav>
-          ${items.map(([key, icon, label]) => `<button data-view="${key}" class="${state.view === key ? 'active' : ''}"><span class="nav-icon">${icon}</span><span class="nav-label">${label}</span></button>`).join('')}
+          ${items.map(([key, icon, label]) => `<button data-view="${key}" class="${state.view === key ? 'active' : ''}"><span class="nav-icon">${icon}</span><span class="nav-label">${label}</span>${key === 'debts' && state.debtSummary && state.debtSummary.badge > 0 ? `<span class="nav-badge">${state.debtSummary.badge}</span>` : ''}</button>`).join('')}
         </nav>
         <div class="divider"></div>
         ${langPickerInlineHtml()}
@@ -286,6 +292,7 @@ async function renderApp() {
 async function renderBusinessView() {
   const view = state.view;
   let html = '';
+  try { state.debtSummary = await API.get('/api/debts/summary'); } catch (e) { state.debtSummary = null; }
   if (view === 'dashboard') html = await dashboardHtml();
   else if (view === 'products') html = await productsHtml();
   else if (view === 'sell') html = await sellHtml();
@@ -293,6 +300,8 @@ async function renderBusinessView() {
   else if (view === 'procurements') html = await procurementsHtml();
   else if (view === 'tax') html = await taxHtml();
   else if (view === 'history') html = await historyHtml();
+  else if (view === 'debts') html = await debtsHtml();
+  else if (view === 'books' && state.user.role === 'admin') html = await booksHtml();
   else if (view === 'customers') html = await customersHtml();
   else if (view === 'guests' && state.user.role === 'admin') html = await guestsHtml();
   else if (view === 'payments' && state.user.role === 'admin') html = await paymentsHtml();
@@ -303,6 +312,9 @@ async function renderBusinessView() {
 
   renderShell(html);
   bindBusinessViewEvents(view);
+  if (view === 'debts') bindDebtsEvents();
+  if (view === 'books') bindBooksEvents();
+  if (view === 'dashboard') bindDebtBannerEvents();
 }
 
 async function dashboardHtml() {
@@ -313,6 +325,7 @@ async function dashboardHtml() {
   }
   return `
     <div class="topbar"><h2>${t('dashboard')}</h2></div>
+    ${debtBannerHtml()}
     <div class="grid-stats">
       <div class="stat positive"><div class="label">${t('totalRevenue')}</div><div class="value">${fmtRWF(summary.totalRevenue)}</div></div>
       <div class="stat"><div class="label">${t('itemsSold')}</div><div class="value">${summary.totalItemsSold}</div></div>
@@ -386,9 +399,10 @@ async function productsHtml() {
     ${isAdmin ? `
     <div class="card">
       <h3>${t('addProduct')}</h3>
-      <div class="form-row" style="grid-template-columns:2fr 1fr 1fr 1fr;">
+      <div class="form-row" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr;">
         <div class="field" style="margin:0;"><label>${t('productName')}</label><input id="p-name" type="text"></div>
         <div class="field" style="margin:0;"><label>${t('price')}</label><input id="p-price" type="number" min="0"></div>
+        <div class="field" style="margin:0;"><label>${t('costPrice')}</label><input id="p-cost" type="number" min="0" placeholder="${t('costPriceHint')}"></div>
         <div class="field" style="margin:0;"><label>${t('stock')}</label><input id="p-stock" type="number" min="0"></div>
         <div class="field" style="margin:0;"><label>${t('unit')}</label>
           <select id="p-unit">${unitOptionsHtml('unit')}</select>
@@ -398,12 +412,12 @@ async function productsHtml() {
       <div class="form-msg" id="product-msg"></div>
     </div>` : ''}
     ${products.length === 0 ? `<div class="empty">—</div>` : `
-    <table><thead><tr><th>${t('productName')}</th><th>${t('price')}</th><th>${t('stock')}</th>${isAdmin ? '<th></th>' : ''}</tr></thead><tbody>
+    <table><thead><tr><th>${t('productName')}</th><th>${t('price')}</th><th>${t('stock')}</th>${isAdmin ? `<th>${t('costPrice')}</th><th></th>` : ''}</tr></thead><tbody>
       ${products.map(p => `
         <tr class="${p.stock <= 5 ? 'flag' : ''}">
           <td class="name-cell">${esc(p.name)}${p.stock <= 5 ? `<span class="pill warn">${t('lowStock')}</span>` : ''}</td>
           <td>${fmtRWF(p.price)}</td><td>${p.stock} ${unitAbbrev(p.unit)}</td>
-          ${isAdmin ? `<td><button class="btn-secondary btn-danger" data-del="${p.id}" style="padding:4px 10px;font-size:12px;">✕</button></td>` : ''}
+          ${isAdmin ? `<td><input type="number" min="0" class="cost-input" data-cost="${p.id}" value="${p.costPrice > 0 ? p.costPrice : ''}" placeholder="—" style="width:110px;padding:5px 8px;border:1px solid ${p.costPrice > 0 ? 'var(--line)' : '#e8a33d'};border-radius:8px;"></td><td><button class="btn-secondary btn-danger" data-del="${p.id}" style="padding:4px 10px;font-size:12px;">✕</button></td>` : ''}
         </tr>`).join('')}
     </tbody></table>`}
   `;
@@ -474,6 +488,11 @@ async function sellHtml() {
       <div class="field" style="max-width:280px;">
         <label>${t('amountPaid')}</label>
         <input id="s-amount" type="number" min="0" placeholder="${t('amountPaidHint')}">
+      </div>
+      <div class="field debt-due-field" id="s-due-wrap" style="max-width:280px;display:none;">
+        <label>📅 ${t('dueDateDebt')}</label>
+        <input id="s-due" type="date" min="${new Date().toISOString().slice(0, 10)}">
+        <div class="field-hint">${t('dueDateDebtHint')}</div>
       </div>
       <button class="btn-primary" id="sell-btn" ${products.length === 0 ? 'disabled' : ''} style="width:auto;">${t('recordSale')}</button>
       <div class="form-msg" id="sell-msg"></div>
@@ -689,7 +708,7 @@ async function procNewFormHtml() {
           <label>${t('unit')}</label>
           <select id="pr-unit">${unitOptionsHtml('unit')}</select>
         </div>
-        <div class="field" style="margin:0;max-width:150px;"><label>${t('unitCost')} (${t('optional')})</label><input id="pr-cost" type="number" min="0"></div>
+        <div class="field" style="margin:0;max-width:150px;"><label>${t('unitCost')} *</label><input id="pr-cost" type="number" min="0"></div>
         <button class="btn-secondary" id="pr-add-item" type="button" style="width:auto;">+ ${t('addItem')}</button>
       </div>
       <div class="form-msg" id="pr-add-msg"></div>
@@ -755,6 +774,10 @@ async function procNewFormHtml() {
         <label>${t('bankName')}</label>
         <input id="pr-bankname" type="text" list="bank-list-proc" placeholder="${t('bankNamePlaceholder')}">
         <datalist id="bank-list-proc">${RW_BANKS.map(b => `<option value="${esc(b)}">`).join('')}</datalist>
+      </div>
+      <div id="pr-debt-wrap" style="display:none;margin-top:12px;" class="form-row">
+        <div class="field" style="margin:0;"><label>${t('amountPaidNow')}</label><input id="pr-paid" type="number" min="0" placeholder="0"></div>
+        <div class="field" style="margin:0;"><label>📅 ${t('dueDateToPay')} *</label><input id="pr-due" type="date" min="${new Date().toISOString().slice(0, 10)}"></div>
       </div>
       <div class="field" style="max-width:260px;margin-top:12px;">
         <label>🧾 ${t('invoiceNumber')} (${t('optional')})</label>
@@ -916,6 +939,9 @@ function taxStatusHtml(data) {
       <div class="form-row" style="grid-template-columns:1fr 2fr;">
         <div class="field" style="margin:0;"><label>${t('amountPaid')}</label><input id="tax-amount" type="number" min="0" value="${estimatedTax || ''}"></div>
         <div class="field" style="margin:0;"><label>${t('note')} (${t('optional')})</label><input id="tax-note" type="text"></div>
+      </div>
+      <div class="field" style="max-width:260px;"><label>${t('paymentMethod')}</label>
+        <select id="tax-method"><option value="cash">💵 ${t('cash')}</option><option value="phone">📱 ${t('mobileMoney')}</option><option value="bank">🏦 ${t('bank')}</option></select>
       </div>
       <button class="btn-primary" id="tax-pay-btn" style="width:auto;">✅ ${t('markTaxPaid')}</button>
       <div class="form-msg" id="tax-pay-msg"></div>
@@ -1101,7 +1127,7 @@ async function historyHtml() {
         <td><span class="pay-badge ${payClass(s)}">${payLabel(s)}</span></td>
         <td>${s.amountPaid != null ? fmtRWF(s.amountPaid) : fmtRWF(s.total)}</td>
         <td>${isDebt
-            ? `<span class="pay-badge debt">⚠️ ${t('debt')} · ${fmtRWF(Math.abs(s.balance || (s.total - s.amountPaid)))}</span>`
+            ? `<span class="pay-badge debt">⚠️ ${t('debt')} · ${fmtRWF(Math.abs(s.balance || (s.total - s.amountPaid)))}</span>${s.dueDate ? `<div class="due-line">📅 ${esc(s.dueDate)}</div>` : ''}`
             : `<span class="pay-badge paid">✅ ${t('paid')}</span>`}</td>
         <td>${s.paidAt ? fmtDate(s.paidAt) : t('notApplicable')}</td>
         <td style="white-space:nowrap;"><button class="btn-secondary invoice-btn" data-sale-id="${s.id}" title="${t('downloadInvoice')}" style="padding:5px 10px;font-size:12px;">🧾 ${t('invoice')}</button>${isDebt ? ` <button class="btn-secondary settle-btn" data-sale-id="${s.id}" style="padding:5px 10px;font-size:12px;">${t('settleDebt')}</button>` : ''}</td>
@@ -1198,7 +1224,7 @@ async function notificationsHtml(endpoint) {
     <div class="topbar"><h2>${t('notifications')}</h2></div>
     ${notes.length === 0 ? `<div class="empty">—</div>` : notes.map(n => `
       <div class="notif-item ${n.type}">
-        <div>${esc(n.message)}</div>
+        <div>${esc(n.i18n && I18N.dict[n.i18n.key] ? I18N.dict[n.i18n.key].replace(/\{(\w+)\}/g, (m, k) => (k === 'amount' ? fmtRWF(n.i18n.params[k]) : n.i18n.params[k])) : n.message)}</div>
         <div class="time">${fmtDate(n.timestamp)}</div>
       </div>`).join('')}
   `;
@@ -1212,11 +1238,19 @@ function bindBusinessViewEvents(view) {
       const price = parseFloat(document.getElementById('p-price').value);
       const stock = parseInt(document.getElementById('p-stock').value, 10);
       const unit = document.getElementById('p-unit').value;
+      const costPrice = document.getElementById('p-cost').value;
       const msg = document.getElementById('product-msg');
       try {
-        await API.post('/api/products', { name, price, stock, unit });
+        await API.post('/api/products', { name, price, stock, unit, costPrice });
         renderApp();
       } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
+    });
+    document.querySelectorAll('[data-cost]').forEach(inp => {
+      inp.addEventListener('change', async () => {
+        const v = inp.value.trim();
+        if (v === '' || isNaN(Number(v)) || Number(v) < 0) return;
+        try { await API.patch('/api/products/' + inp.dataset.cost, { costPrice: Number(v) }); inp.style.borderColor = 'var(--positive)'; } catch (e) { alert(e.message); }
+      });
     });
     document.querySelectorAll('[data-del]').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -1255,6 +1289,14 @@ function bindBusinessViewEvents(view) {
     if (productSel) { productSel.addEventListener('change', fillDefaultPrice); fillDefaultPrice(); }
     if (priceInput) priceInput.addEventListener('input', updateTotal);
     if (qtyInput) qtyInput.addEventListener('input', updateTotal);
+    const amountInput = document.getElementById('s-amount');
+    const dueWrap = document.getElementById('s-due-wrap');
+    const toggleDue = () => {
+      const total = (parseFloat(priceInput.value) || 0) * (parseInt(qtyInput.value, 10) || 0);
+      const raw = amountInput.value;
+      dueWrap.style.display = raw !== '' && (parseFloat(raw) || 0) < total ? 'block' : 'none';
+    };
+    [amountInput, priceInput, qtyInput].forEach(el => el && el.addEventListener('input', toggleDue));
 
     const btn = document.getElementById('sell-btn');
     if (btn) btn.addEventListener('click', async () => {
@@ -1267,6 +1309,7 @@ function bindBusinessViewEvents(view) {
       const bankName = document.getElementById('s-bankname') ? document.getElementById('s-bankname').value.trim() : '';
       const amountRaw = document.getElementById('s-amount').value;
       const amountPaid = amountRaw === '' ? null : parseFloat(amountRaw);
+      const dueDate = document.getElementById('s-due') ? document.getElementById('s-due').value : '';
       const msg = document.getElementById('sell-msg');
       if (!customerName) {
         msg.textContent = t('customerNameRequired');
@@ -1274,8 +1317,8 @@ function bindBusinessViewEvents(view) {
         return;
       }
       try {
-        await API.post('/api/sales', { productId, qty, unitPrice, customerName, customerPhone, customerEmail, paymentMethod: selectedPayMethod, bankName, amountPaid });
-        msg.textContent = 'Byakunze!';
+        await API.post('/api/sales', { productId, qty, unitPrice, customerName, customerPhone, customerEmail, paymentMethod: selectedPayMethod, bankName, amountPaid, dueDate });
+        msg.textContent = t('saved');
         msg.className = 'form-msg show success';
         setTimeout(renderApp, 600);
       } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
@@ -1296,16 +1339,7 @@ function bindBusinessViewEvents(view) {
       });
     });
     document.querySelectorAll('.settle-btn').forEach(sbtn => {
-      sbtn.addEventListener('click', async () => {
-        const amountStr = window.prompt(t('settleDebtAmount'));
-        if (amountStr === null) return;
-        const amount = parseFloat(amountStr);
-        if (!amount || amount <= 0) return;
-        try {
-          await API.patch(`/api/sales/${sbtn.dataset.saleId}/settle`, { amount });
-          renderApp();
-        } catch (e) { alert(e.message); }
-      });
+      sbtn.addEventListener('click', () => openSettleModal(sbtn.dataset.saleId));
     });
   }
   if (view === 'customers') {
@@ -1444,6 +1478,11 @@ function bindBusinessViewEvents(view) {
       const costRaw = document.getElementById('pr-cost').value;
       const unitCost = costRaw === '' ? null : parseFloat(costRaw);
       const msg = document.getElementById('pr-add-msg');
+      if (!(unitCost > 0)) {
+        msg.textContent = t('unitCostRequired');
+        msg.className = 'form-msg show error';
+        return;
+      }
       if (!qty || qty < 1) {
         msg.textContent = t('selectProductFirst');
         msg.className = 'form-msg show error';
@@ -1483,6 +1522,8 @@ function bindBusinessViewEvents(view) {
         selectedProcPay = pbtn.dataset.ppay;
         const bankWrap = document.getElementById('pr-bankname-wrap');
         if (bankWrap) bankWrap.style.display = selectedProcPay === 'bank' ? 'block' : 'none';
+        const dw = document.getElementById('pr-debt-wrap');
+        if (dw) dw.style.display = selectedProcPay === 'debt' ? 'grid' : 'none';
       });
     });
 
@@ -1506,8 +1547,11 @@ function bindBusinessViewEvents(view) {
         supplierLocation: document.getElementById('pr-slocation').value.trim(),
         paymentMethod: selectedProcPay,
         bankName: document.getElementById('pr-bankname') ? document.getElementById('pr-bankname').value.trim() : '',
-        invoiceNumber: document.getElementById('pr-invoice').value.trim()
+        invoiceNumber: document.getElementById('pr-invoice').value.trim(),
+        amountPaid: selectedProcPay === 'debt' ? (document.getElementById('pr-paid').value || 0) : undefined,
+        dueDate: selectedProcPay === 'debt' ? document.getElementById('pr-due').value : undefined
       };
+      if (selectedProcPay === 'debt' && !payload.dueDate) { msg.textContent = t('dueDateRequired'); msg.className = 'form-msg show error'; return; }
       try {
         await API.post('/api/procurements', payload);
         state.newProcItems = [];
@@ -1537,7 +1581,7 @@ function bindBusinessViewEvents(view) {
       const note = document.getElementById('tax-note').value.trim();
       const msg = document.getElementById('tax-pay-msg');
       try {
-        await API.post('/api/tax/payments', { amountPaid, note });
+        await API.post('/api/tax/payments', { amountPaid, note, method: document.getElementById('tax-method').value });
         renderApp();
       } catch (e) { msg.textContent = e.message; msg.className = 'form-msg show error'; }
     });
