@@ -18,6 +18,8 @@ const adminRoutes = require('./src/routes/admin');
 const superadminRoutes = require('./src/routes/superadmin');
 const paymentRoutes = require('./src/routes/payments');
 const notificationRoutes = require('./src/routes/notifications');
+const debtRoutes = require('./src/routes/debts');
+const accountingRoutes = require('./src/routes/accounting');
 
 const app = express();
 app.use(cors());
@@ -44,6 +46,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/debts', debtRoutes);
+app.use('/api/accounting', accountingRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
