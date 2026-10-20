@@ -2,8 +2,8 @@
 // bwiza iyo nta internet ihari. AMAKURU (API) ntabwo abikwa hano - buri gihe
 // avanwa kuri server, kugira ngo stock n'amafaranga bihore ari ukuri (nta
 // kubura guhuza hagati y'abakoresha benshi).
-const CACHE = 'ittp-shell-v3';
-const ASSETS = ['/', '/css/style.css', '/js/app.js', '/js/api.js', '/js/i18n.js', '/manifest.webmanifest', '/logo.svg', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'ittp-shell-v4';
+const ASSETS = ['/', '/css/style.css', '/js/app.js', '/js/books.js', '/js/api.js', '/js/i18n.js', '/manifest.webmanifest', '/logo.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
